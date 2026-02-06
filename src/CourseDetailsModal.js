@@ -124,7 +124,41 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
 
     const handleSubmitQuiz = () => { if (attemptsCount >= 2) return alert("No attempts left."); let score = 0; questions.forEach(q => { if (userAnswers[q.id] === q.correct_answer) score++; }); setQuizScore(score); API.post('/quiz/attempt', { user_email: currentUser.email, course_id: course.id, score: score }).then(() => { setAttemptsCount(prev => prev + 1); alert(`Score: ${score}/${questions.length}`); }); };
     const handleRetakeQuiz = () => { if (attemptsCount >= 2) return; setUserAnswers({}); setQuizScore(null); };
-    const handleAddComment = (e) => { e.preventDefault(); API.post('/comments/add', { course_id: course.id, user_name: currentUser.name, comment_text: newComment }).then(() => { setNewComment(""); fetchComments(); }); };
+   // ✅ تعديل إضافة التعليق
+const handleAddComment = (e) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+
+    API.post('/comments/add', {
+        course_id: course.id, // نبعته كـ id للمنشور
+        user_id: currentUser.id,
+        user_name: currentUser.name,
+        user_avatar: currentUser.profile_pic || '',
+        comment_text: newComment
+    }).then(() => {
+        setNewComment("");
+        fetchComments(); // تحديث القائمة فوراً
+    }).catch(err => alert("Comment failed: " + err.message));
+};
+
+// ✅ تعديل إضافة الماتريال
+const handleAddMaterial = (e) => {
+    e.preventDefault();
+    if (!newMaterial.file || !newMaterial.title) return alert("Please fill all fields");
+
+    const formData = new FormData();
+    formData.append('course_id', course.id);
+    formData.append('title', newMaterial.title);
+    formData.append('file', newMaterial.file);
+
+    API.post('/materials/add', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    }).then(() => {
+        alert("Material Uploaded! 📄");
+        setNewMaterial({ title: '', file: null });
+        fetchMaterials();
+    }).catch(err => alert("Upload failed"));
+};
     const handleAddQuestion = (e) => { e.preventDefault(); API.post('/quiz/add', { course_id: course.id, question_text: newQuestion.text, option_a: newQuestion.a, option_b: newQuestion.b, option_c: newQuestion.c, option_d: newQuestion.d, correct_answer: newQuestion.correct }).then(() => { alert("Added"); setNewQuestion({ text: '', a: '', b: '', c: '', d: '', correct: 'a' }); fetchQuiz(); }); };
     const handleDeleteQuestion = (id) => { if (window.confirm("Delete?")) API.delete(`/quiz/delete/${id}`).then(() => fetchQuiz()); };
     const handleAddMaterial = (e) => { e.preventDefault(); if (!newMaterial.file) return alert("Select file"); const formData = new FormData(); formData.append('course_id', course.id); formData.append('title', newMaterial.title); formData.append('file', newMaterial.file); API.post('/materials/add', formData).then(() => { alert("Uploaded"); setNewMaterial({ title: '', file: null }); fetchMaterials(); }); };
