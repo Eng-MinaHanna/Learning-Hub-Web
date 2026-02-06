@@ -31,12 +31,13 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
     const [isEditing, setIsEditing] = useState(false);
 
     const [editingVideoId, setEditingVideoId] = useState(null);
-    const [newVideoLink, setNewVideoLink] = useState({ title: '', link: '', date: '' });
+    // ✅ تحسين: إضافة دعم لملفات الفيديو
+    const [newVideoLink, setNewVideoLink] = useState({ title: '', link: '', date: '', file: null });
     const [newComment, setNewComment] = useState("");
 
     const [realVideoEnded, setRealVideoEnded] = useState(false);
 
-    // ✅ 1. إضافة حساس حجم الشاشة للموبايل (بدون حذف أي سطر)
+    // ✅ 1. حساس حجم الشاشة للموبايل
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
     useEffect(() => {
@@ -161,8 +162,37 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
     const handleDeleteMaterial = (id) => { if (window.confirm("Delete?")) API.delete(`/materials/delete/${id}`).then(() => fetchMaterials()); };
     const handleOptionSelect = (qId, opt) => { if (quizScore !== null || attemptsCount >= 2) return; setUserAnswers({ ...userAnswers, [qId]: opt }); };
     const handleSaveChanges = async () => { try { await API.put(`/activities/update/${course.id}`, { ...course, title: editData.title, description: editData.description, event_date: course.event_date.split('T')[0] }); setIsEditing(false); } catch (error) { alert("Error"); } };
-    const startEditingVideo = (vid) => { setEditingVideoId(vid.id); let formattedDate = ''; if (vid.video_date) { const d = new Date(vid.video_date); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); formattedDate = d.toISOString().slice(0, 16); } setNewVideoLink({ title: vid.video_title, link: vid.video_link, date: formattedDate }); };
-    const handleSaveVideo = async (e) => { e.preventDefault(); if (!newVideoLink.date) { alert("⚠️ Date needed"); return; } if (editingVideoId) { await API.put(`/videos/update/${editingVideoId}`, { video_title: newVideoLink.title, video_link: newVideoLink.link, video_date: newVideoLink.date }); } else { await API.post('/videos/add', { course_id: course.id, video_title: newVideoLink.title, video_link: newVideoLink.link, video_date: newVideoLink.date }); } setNewVideoLink({ title: '', link: '', date: '' }); setEditingVideoId(null); fetchVideos(); };
+    const startEditingVideo = (vid) => { setEditingVideoId(vid.id); let formattedDate = ''; if (vid.video_date) { const d = new Date(vid.video_date); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); formattedDate = d.toISOString().slice(0, 16); } setNewVideoLink({ title: vid.video_title, link: vid.video_link, date: formattedDate, file: null }); };
+    
+    // ✅ تحسين: رفع الفيديو كملف أو لينك
+    const handleSaveVideo = async (e) => { 
+        e.preventDefault(); 
+        if (!newVideoLink.date) { alert("⚠️ Date needed"); return; } 
+        
+        const formData = new FormData();
+        formData.append('course_id', course.id);
+        formData.append('video_title', newVideoLink.title);
+        formData.append('video_date', newVideoLink.date);
+        
+        if (newVideoLink.file) {
+            formData.append('video_file', newVideoLink.file);
+        } else {
+            formData.append('video_link', newVideoLink.link);
+        }
+
+        try {
+            if (editingVideoId) { 
+                await API.put(`/videos/update/${editingVideoId}`, formData); 
+            } else { 
+                await API.post('/videos/add', formData); 
+            } 
+            setNewVideoLink({ title: '', link: '', date: '', file: null }); 
+            setEditingVideoId(null); 
+            fetchVideos(); 
+            alert("Video Saved! 🎬");
+        } catch(err) { alert("Error saving video"); }
+    };
+
     const handleDeleteVideo = async (videoId) => { if (window.confirm("Delete Video?")) { await API.delete(`/videos/delete/${videoId}`); fetchVideos(); } };
     const formatDateTime = (ds) => { if (!ds) return 'Soon'; const d = new Date(ds); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); };
 
@@ -178,10 +208,9 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                 {canEdit && <button onClick={() => isEditing ? handleSaveChanges() : setIsEditing(true)} style={styles.editBtn}>{isEditing ? '💾 Save' : '⚙️ Edit'}</button>}
             </div>
 
-            {/* ✅ 2. تعديل الـ Layout للموبايل: قلب الاتجاه column وإعادة ترتيب المكونات */}
             <div style={{ ...styles.mainLayout, flexDirection: isMobile ? 'column' : 'row' }}>
                 
-                {/* منطقة الفيديو تطلع فوق في الموبايل */}
+                {/* منطقة الفيديو في الموبايل تطلع فوق */}
                 <div style={{ ...styles.contentAreaStyle, order: isMobile ? -1 : 0 }}>
                     {!isUnlocked ? (
                         <div style={styles.lockScreenStyle}><h1>🔒 Locked</h1><button onClick={handleSubscribe} style={styles.bigSubscribeBtn}>Subscribe Now</button></div>
@@ -190,7 +219,7 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                             <div style={{ ...styles.tabsWrapper, padding: isMobile ? '0 10px' : '0 20px' }}>
                                 <div style={{ ...styles.tabsContainer, gap: isMobile ? '10px' : '20px', overflowX: 'auto' }}>
                                     <button onClick={() => setActiveTab('lesson')} style={activeTab === 'lesson' ? styles.activeTabBtn : styles.tabBtn}>📺 Lesson</button>
-                                    <button onClick={() => setActiveTab('quiz')} style={activeTab === 'quiz' ? styles.activeTabBtn : styles.tabBtn}>🧩 Quiz</button>
+                                    <button onClick={() => setActiveTab('quiz')} style={activeTab === 'quiz' ? styles.activeTabBtn : styles.tabBtn}>🧩 Quiz ({questions.length})</button>
                                     <button onClick={() => setActiveTab('materials')} style={activeTab === 'materials' ? styles.activeTabBtn : styles.tabBtn}>📁 Files</button>
                                     <button onClick={() => setActiveTab('comments')} style={activeTab === 'comments' ? styles.activeTabBtn : styles.tabBtn}>💬 Chat</button>
                                 </div>
@@ -214,17 +243,17 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                                         {activeVideo && (
                                             <div style={{ marginTop: '20px', padding: '15px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'center', justifyContent: 'space-between', gap: '15px' }}>
                                                 <div style={{ textAlign: isMobile ? 'center' : 'left' }}>
-                                                    <h4 style={{ margin: 0, color: 'white' }}>Status:</h4>
+                                                    <h4 style={{ margin: 0, color: 'white' }}>Video Status:</h4>
                                                     <span style={{ color: isVideoWatched ? '#00e676' : '#f59e0b', fontWeight: 'bold' }}>{isVideoWatched ? "✅ Completed" : "⏳ Watching..."}</span>
                                                 </div>
                                                 {!isVideoWatched && (
                                                     <button onClick={() => handleMarkWatched(false)} style={{ ...styles.markWatchedBtn, width: isMobile ? '100%' : 'auto', opacity: (realVideoEnded || canEdit || isDriveLink(activeVideo.video_link)) ? 1 : 0.5 }}>
-                                                        {(realVideoEnded || canEdit) ? "Complete ✅" : "Finish video 🔒"}
+                                                        {(realVideoEnded || canEdit) ? "Mark Completed ✅" : "Finish video 🔒"}
                                                     </button>
                                                 )}
                                             </div>
                                         )}
-                                        <div style={{ marginTop: '20px', color: '#ccc', lineHeight: '1.6', fontSize: isMobile ? '0.9rem' : '1rem' }}>{editData.description}</div>
+                                        <div style={{ marginTop: '20px', color: '#ccc', lineHeight: '1.6' }}>{editData.description}</div>
                                     </div>
                                 )}
 
@@ -235,9 +264,20 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                                         ) : (
                                             <>
                                                 {canEdit && <div style={styles.adminCard}><h4>Add Question</h4><input value={newQuestion.text} onChange={e => setNewQuestion({ ...newQuestion, text: e.target.value })} style={styles.descInput} placeholder="Question" /><div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px', marginBottom: '10px' }}><input placeholder="A" value={newQuestion.a} onChange={e => setNewQuestion({ ...newQuestion, a: e.target.value })} style={styles.sidebarInput} /><input placeholder="B" value={newQuestion.b} onChange={e => setNewQuestion({ ...newQuestion, b: e.target.value })} style={styles.sidebarInput} /><input placeholder="C" value={newQuestion.c} onChange={e => setNewQuestion({ ...newQuestion, c: e.target.value })} style={styles.sidebarInput} /><input placeholder="D" value={newQuestion.d} onChange={e => setNewQuestion({ ...newQuestion, d: e.target.value })} style={styles.sidebarInput} /></div><div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}><label style={{ color: '#aaa' }}>Correct:</label><select value={newQuestion.correct} onChange={e => setNewQuestion({ ...newQuestion, correct: e.target.value })} style={styles.sidebarInput}><option value="a">A</option><option value="b">B</option><option value="c">C</option><option value="d">D</option></select><button onClick={handleAddQuestion} style={styles.actionBtn}>Add</button></div></div>}
-                                                <div style={{ marginBottom: '20px' }}>Attempts: {attemptsCount}/2 | Best: {bestScore}</div>
-                                                {questions.map((q, idx) => (<div key={q.id} style={styles.questionCard}><h4>Q{idx + 1}: {q.question_text}</h4>{['a', 'b', 'c', 'd'].map(o => <label key={o} style={{ display: 'block', padding: '10px' }}><input type="radio" name={`q-${q.id}`} onChange={() => handleOptionSelect(q.id, o)} disabled={attemptsCount >= 2 || quizScore !== null} /> {q[`option_${o}`]}</label>)}</div>))}
-                                                {attemptsCount < 2 && quizScore === null ? <button onClick={handleSubmitQuiz} style={{...styles.bigSubscribeBtn, width:'100%'}}>Submit</button> : <div>{attemptsCount >= 2 ? "No attempts left" : <button onClick={handleRetakeQuiz} style={styles.secondaryBtn}>Retake</button>}</div>}
+                                                <div style={{ marginBottom: '20px', color:'#ffd700' }}>Attempts: {attemptsCount || 0}/2 | Best: {bestScore || 0}</div>
+                                                {/* ✅ حماية الشاشة البيضاء في الكويز */}
+                                                {Array.isArray(questions) && questions.length > 0 ? questions.map((q, idx) => (
+                                                    <div key={q.id || idx} style={styles.questionCard}>
+                                                        <h4>Q{idx + 1}: {q.question_text}</h4>
+                                                        {['a', 'b', 'c', 'd'].map(o => (
+                                                            <label key={o} style={{ display: 'block', padding: '10px', cursor:'pointer' }}>
+                                                                <input type="radio" name={`q-${q.id}`} onChange={() => handleOptionSelect(q.id, o)} disabled={(attemptsCount || 0) >= 2 || quizScore !== null} /> {q[`option_${o}`]}
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                )) : <p style={{color:'#666', textAlign:'center'}}>No questions yet.</p>}
+                                                {(attemptsCount || 0) < 2 && quizScore === null && questions.length > 0 && <button onClick={handleSubmitQuiz} style={{...styles.bigSubscribeBtn, width:'100%'}}>Submit Quiz</button>}
+                                                {((attemptsCount || 0) >= 2 || quizScore !== null) && <div style={{textAlign:'center'}}>{(attemptsCount || 0) < 2 ? <button onClick={handleRetakeQuiz} style={styles.secondaryBtn}>Retake</button> : <span style={{color:'#ff6b6b'}}>No attempts left</span>}</div>}
                                             </>
                                         )}
                                     </div>
@@ -247,7 +287,7 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                                     <div style={styles.fadeIn}>
                                         {canEdit && (
                                             <div style={styles.adminCard}>
-                                                <h4 style={{ color: '#4facfe', margin: '0 0 15px 0' }}>📤 Upload</h4>
+                                                <h4 style={{ color: '#4facfe', margin: '0 0 15px 0' }}>📤 Upload Material</h4>
                                                 <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px' }}>
                                                     <input placeholder="Title" value={newMaterial.title} onChange={e => setNewMaterial({ ...newMaterial, title: e.target.value })} style={styles.commentInput} />
                                                     <input type="file" onChange={e => setNewMaterial({ ...newMaterial, file: e.target.files[0] })} style={{ color: 'white' }} />
@@ -281,8 +321,8 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                     )}
                 </div>
 
-                {/* الـ Playlist تنزل تحت في الموبايل */}
-                <div style={{ ...styles.sidebarStyle, width: isMobile ? '100%' : '300px', height: isMobile ? '300px' : 'auto', borderRight: isMobile ? 'none' : styles.sidebarStyle.borderRight, borderTop: isMobile ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                {/* الـ Playlist في الموبايل تنزل تحت */}
+                <div style={{ ...styles.sidebarStyle, width: isMobile ? '100%' : '300px', height: isMobile ? '350px' : 'auto', borderRight: isMobile ? 'none' : styles.sidebarStyle.borderRight, borderTop: isMobile ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
                     <div style={styles.sidebarHeader}><h3 style={{ margin: 0, color: '#ecf0f1', fontSize: '1rem' }}>▶️ Playlist</h3></div>
                     <div style={{ flex: 1, overflowY: 'auto' }}>
                         {visibleVideos.map((vid, index) => (
@@ -296,6 +336,22 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                             </div>
                         ))}
                     </div>
+                    {isEditing && (
+                        <div style={styles.addVideoForm}>
+                            <h4 style={{ color: '#4facfe', margin: '0 0 10px 0' }}>{editingVideoId ? '✏️ Edit Video' : '➕ Add Video'}</h4>
+                            <input placeholder="Title" value={newVideoLink.title} onChange={e => setNewVideoLink({ ...newVideoLink, title: e.target.value })} style={styles.sidebarInput} />
+                            <input type="datetime-local" value={newVideoLink.date} onChange={e => setNewVideoLink({ ...newVideoLink, date: e.target.value })} style={{ ...styles.sidebarInput, marginTop: '5px', colorScheme: 'dark' }} />
+                            
+                            {/* تحسين: اختيار بين لينك أو ملف */}
+                            <div style={{marginTop:'8px'}}>
+                                <input placeholder="Link (YT/Drive)" value={newVideoLink.link} onChange={e => setNewVideoLink({ ...newVideoLink, link: e.target.value, file: null })} style={styles.sidebarInput} />
+                                <div style={{textAlign:'center', color:'#555', margin:'5px 0', fontSize:'10px'}}>OR</div>
+                                <input type="file" accept="video/*" onChange={e => setNewVideoLink({ ...newVideoLink, file: e.target.files[0], link: '' })} style={{fontSize:'10px', color:'#aaa'}} />
+                            </div>
+
+                            <button onClick={handleSaveVideo} style={{ ...styles.addVideoBtn, marginTop: '10px' }}>{editingVideoId ? 'Update' : 'Add'}</button>
+                        </div>
+                    )}
                 </div>
 
             </div>
