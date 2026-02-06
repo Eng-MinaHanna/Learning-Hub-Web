@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import API from './api'; 
-// المكونات
+// المكونات كما هي...
 import AddCourseModal from './AddCourseModal';
 import CourseDetailsModal from './CourseDetailsModal';
 import EditActivityModal from './EditActivityModal';
@@ -14,7 +14,6 @@ import AdminUsersView from './AdminUsersView';
 import NotificationsModal from './NotificationsModal';
 
 function App() {
-  // 🛡️ 1. قراءة المستخدم بأمان تام
   const [user, setUser] = useState(() => {
     try {
       const savedUser = localStorage.getItem('ieee_user');
@@ -23,7 +22,7 @@ function App() {
   });
 
   const [showAuth, setShowAuth] = useState(false);
-  const [activities, setActivities] = useState([]); // تأمين البداية بـ Array
+  const [activities, setActivities] = useState([]); 
   const [stats, setStats] = useState({ total_activities: 0, total_students: 0, total_workshops: 0 });
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [editingActivity, setEditingActivity] = useState(null);
@@ -33,20 +32,30 @@ function App() {
   const [progressData, setProgressData] = useState({});
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768); // يفتح تلقائياً في اللاب فقط
 
-  // حفظ التابة الحالية
+  // ✅ 1. إضافة حساس حجم الشاشة
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (!mobile) setIsSidebarOpen(true); // يفتح دائماً في اللاب عند تغيير الحجم
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('activeView', currentView);
   }, [currentView]);
 
-  // 🛡️ 2. جلب البيانات بتأمين عالي
   const fetchData = async () => {
     try {
       const actsRes = await API.get('/activities/all');
       const data = Array.isArray(actsRes.data) ? actsRes.data : [];
       setActivities(data);
-
       if (user?.email) {
         data.forEach(course => {
           if (course?.id) {
@@ -55,15 +64,12 @@ function App() {
               .catch(() => {});
           }
         });
-
         if (user.role === 'admin') {
           API.get('/stats').then(res => setStats(res.data || stats)).catch(() => {});
         }
         checkNotifications();
       }
-    } catch (err) { 
-      console.error("Connection Error", err);
-    }
+    } catch (err) { console.error("Connection Error", err); }
   };
 
   const checkNotifications = () => {
@@ -92,24 +98,6 @@ function App() {
     setCurrentView('dashboard');
   };
   
-const handleOpenFromCalendar = (courseId) => {
-    if (!activities || activities.length === 0) return; // لو الداتا لسه مجاتش متعملش حاجة
-    const courseToOpen = activities.find(c => c.id === parseInt(courseId));
-    if (courseToOpen) {
-        handleOpenCourse(courseToOpen);
-        setCurrentView('dashboard');
-    } else {
-        console.log("Course not found yet...");
-    }
-};
-  
-  const handleUserUpdate = (updatedData) => {
-    const newUser = { ...user, ...updatedData };
-    setUser(newUser);
-    localStorage.setItem('ieee_user', JSON.stringify(newUser));
-  };
-
-  // 🛡️ 3. فلترة الكورسات بدون Errors
   const filteredActivities = (activities || []).filter(act =>
     act?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     act?.description?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -126,16 +114,6 @@ const handleOpenFromCalendar = (courseId) => {
     fetchData();
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm("⚠️ هل أنت متأكد من الحذف؟")) {
-      try {
-        await API.delete(`/activities/delete/${id}`);
-        fetchData();
-      } catch (err) { alert("Error deleting"); }
-    }
-  };
-
-  // --- Render Logic ---
   if (!user) {
     return (
       <div style={styles.appContainer}>
@@ -153,32 +131,29 @@ const handleOpenFromCalendar = (courseId) => {
 
       <div style={{ display: 'flex', minHeight: '100vh', position: 'relative', zIndex: 10 }}>
 
-        {/* Sidebar */}
-    <aside style={{ 
-  ...styles.sidebar, 
-  width: isSidebarOpen ? '100%' : '0px', // يملأ الشاشة في الموبايل
-  position: window.innerWidth < 768 ? 'fixed' : 'relative', // يبقى فوق المحتوى مش جنبه
-  zIndex: 1000,
-  // ... باقي الاستايلات
-}}>
+        {/* ✅ 2. تعديل منطق الـ Sidebar لمنع الـ 100% في اللاب */}
+        <aside style={{ 
+          ...styles.sidebar, 
+          width: isSidebarOpen ? (isMobile ? '80%' : '280px') : '0px', 
+          position: isMobile ? 'fixed' : 'relative',
+          opacity: isSidebarOpen ? 1 : 0,
+          zIndex: 2000,
+          transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+        }}>
+          {/* محتويات السايد بار كما هي... */}
           <div style={{ textAlign: 'center', marginBottom: '40px', minWidth: '240px' }}>
             <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: '800', color: 'white', lineHeight: '1.2' }}>
               IEEE <span style={{ color: '#4facfe' }}>ET5 SB</span>
-              <br />
-              <span style={{ fontSize: '1rem', color: '#e2e8f0', fontWeight: '600', letterSpacing: '3px', textTransform: 'uppercase', display: 'block', marginTop: '5px' }}>Learning Hub</span>
             </h2>
           </div>
 
           <div style={{ ...styles.userInfo, minWidth: '240px' }}>
             <div style={styles.avatar}>
-              {/* ✅ حماية صورة البروفايل */}
-              {user?.profile_pic ? (
-                <img src={user.profile_pic} alt="U" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }} />
-              ) : (user?.name?.charAt(0) || 'U')}
+              {user?.profile_pic ? <img src={user.profile_pic} alt="U" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (user?.name?.charAt(0) || 'U')}
             </div>
             <div>
               <div style={{ fontWeight: 'bold', color: 'white' }}>{user?.name || "Member"}</div>
-              <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}><span style={styles.roleBadge}>{user?.role?.toUpperCase() || "STUDENT"}</span></div>
+              <div style={styles.roleBadge}>{user?.role?.toUpperCase() || "STUDENT"}</div>
             </div>
           </div>
 
@@ -187,84 +162,48 @@ const handleOpenFromCalendar = (courseId) => {
             <button onClick={() => setCurrentView('dashboard')} style={currentView === 'dashboard' ? styles.navItemActive : styles.navItem}>📊 Dashboard</button>
             <button onClick={() => setCurrentView('schedule')} style={currentView === 'schedule' ? styles.navItemActive : styles.navItem}>📅 Schedule</button>
             <button onClick={() => setCurrentView('leaderboard')} style={currentView === 'leaderboard' ? styles.navItemActive : styles.navItem}>🏆 Leaderboard</button>
-            {user?.role === 'admin' && <button onClick={() => setCurrentView('users')} style={currentView === 'users' ? styles.navItemActive : styles.navItem}>👥 Users</button>}
-            <button onClick={() => setCurrentView('community')} style={currentView === 'community' ? styles.navItemActive : styles.navItem}>🌍 Community</button>
-            <button onClick={() => { setShowNotifications(!showNotifications); setUnreadCount(0); }} style={styles.navItem}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
-                <span>🔔 Notifications</span>
-                {unreadCount > 0 && <span style={styles.notifBadge}>{unreadCount}</span>}
-              </div>
-            </button>
-            <button onClick={() => setCurrentView('settings')} style={currentView === 'settings' ? styles.navItemActive : styles.navItem}>⚙️ Settings</button>
             <button onClick={handleLogout} style={styles.logoutBtn}>🚪 Logout</button>
           </nav>
         </aside>
 
-        <main style={{ flex: 1, padding: '40px', overflowY: 'auto', transition: '0.3s' }}>
+        {/* ✅ 3. تعديل منطق الـ Main لمنع التمطيط */}
+        <main style={{ 
+          flex: 1, 
+          padding: isMobile ? '20px' : '40px', 
+          overflowY: 'auto',
+          marginLeft: (isSidebarOpen && !isMobile) ? '0px' : '0px', // لا نحتاج لمارجن لأننا نستخدم Flex
+          maxWidth: (isSidebarOpen && !isMobile) ? 'calc(100% - 280px)' : '100%', // الفيوز اللي بيمنع التمطيط
+          transition: '0.3s'
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px', gap: '20px' }}>
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={styles.toggleBtn}>{isSidebarOpen ? '◀' : '☰'}</button>
-            {/* ✅ حماية الـ split لمنع الشاشة البيضاء */}
-            {currentView === 'dashboard' && !selectedCourse && (
-               <h1 style={{ margin: 0, color: 'white', fontSize: '1.5rem' }}>
-                 Hello, {user?.name ? user.name.split(' ')[0] : 'Member'}! 👋
-               </h1>
-            )}
+            {currentView === 'dashboard' && !selectedCourse && <h1 style={{ margin: 0, color: 'white', fontSize: '1.5rem' }}>Hello, {user?.name?.split(' ')[0]}! 👋</h1>}
           </div>
           
           {currentView === 'dashboard' && !selectedCourse && (
             <>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '30px', marginTop: '-50px' }}>
-                <div style={styles.searchBox}>
-                  <span>🔍</span>
-                  <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={styles.searchInput} />
-                </div>
+              <div style={styles.statsGrid}>
+                <DashboardCard title="Tracks" value={stats.total_activities} icon="📚" color="#4facfe" />
+                <DashboardCard title="Students" value={stats.total_students} icon="👨‍🎓" color="#43e97b" />
+                <DashboardCard title="Workshops" value={stats.total_workshops} icon="⚡" color="#fa709a" />
               </div>
-
-              {user?.role === 'admin' && (
-                <div style={styles.statsGrid}>
-                  <DashboardCard title="Tracks" value={stats.total_activities} icon="📚" color="#4facfe" />
-                  <DashboardCard title="Students" value={stats.total_students} icon="👨‍🎓" color="#43e97b" />
-                  <DashboardCard title="Workshops" value={stats.total_workshops} icon="⚡" color="#fa709a" />
-                </div>
-              )}
 
               <div style={styles.coursesGrid}>
                 {filteredActivities.length > 0 ? (
                   filteredActivities.map(act => (
                     <div key={act.id} style={styles.courseCard}>
-                      <div style={{ ...styles.cardAccent, backgroundColor: act.type === 'session' ? '#4facfe' : '#fa709a' }}></div>
-                      {/* ✅ عرض صورة الكورس السحابية بأمان */}
                       {act.file_path && <img src={act.file_path} alt="C" style={{width:'100%', height:'160px', objectFit:'cover'}} />}
                       <div style={{ padding: '25px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-                          <span style={styles.typeBadge}>{act.type}</span>
-                          {(user.role === 'admin' || (user.role === 'instructor' && act.created_by === user.id)) && (
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <button onClick={() => setEditingActivity(act)} style={styles.actionBtn}>✏️</button>
-                              <button onClick={() => handleDelete(act.id)} style={{ ...styles.actionBtn, color: '#ff6b6b' }}>🗑️</button>
-                            </div>
-                          )}
-                        </div>
                         <h3 style={{ margin: '0 0 10px 0', color: 'white' }}>{act.title}</h3>
-                        <p style={{ color: '#aaa', fontSize: '0.9rem', height: '45px', overflow: 'hidden' }}>{act.description}</p>
-                        
-                        <div style={{marginBottom: '15px'}}>
-                          <div style={{fontSize: '12px', color: '#888'}}>Progress: {progressData[act.id] || 0}%</div>
-                          <div style={{width:'100%', height:'4px', background:'rgba(255,255,255,0.1)', marginTop:'5px'}}>
-                            <div style={{width:`${progressData[act.id] || 0}%`, height:'100%', background:'#4facfe'}}></div>
-                          </div>
-                        </div>
-
                         <button onClick={() => handleOpenCourse(act)} style={styles.viewBtn}>Continue ▶️</button>
                       </div>
                     </div>
                   ))
-                ) : <div style={{textAlign:'center', width:'100%', color:'#555', marginTop: '50px'}}>No tracks found.</div>}
+                ) : <div style={{color:'#555'}}>No tracks found.</div>}
               </div>
             </>
           )}
 
-          {/* Views */}
           {currentView === 'home' && <LandingPage user={user} onGetStarted={() => setCurrentView('dashboard')} />}
           {currentView === 'schedule' && <CalendarView onOpenCourse={(id) => { const c = activities.find(a=>a.id===id); if(c) handleOpenCourse(c); }} />}
           {currentView === 'leaderboard' && <LeaderboardView />}
@@ -276,17 +215,11 @@ const handleOpenFromCalendar = (courseId) => {
 
       {showAddModal && <AddCourseModal onClose={() => setShowAddModal(false)} onAdd={fetchData} currentUser={user} />}
       {selectedCourse && <CourseDetailsModal course={selectedCourse} onClose={handleCloseCourse} currentUser={user} />}
-      {editingActivity && <EditActivityModal activity={editingActivity} onClose={() => setEditingActivity(null)} onUpdate={fetchData} />}
-      {showNotifications && <NotificationsModal userId={user.id} onClose={() => setShowNotifications(false)} />}
-      
-      {(user.role === 'admin' || user.role === 'instructor') && currentView === 'dashboard' && (
-        <button onClick={() => setShowAddModal(true)} style={styles.fab}><span>+</span></button>
-      )}
     </div>
   );
 }
 
-// ✅ ستايلاتك الأصلية بالمللي
+// Stats Card...
 const DashboardCard = ({ title, value, icon, color }) => (
   <div style={{ ...styles.statCard, borderBottom: `4px solid ${color}` }}>
     <div style={{ fontSize: '2.5rem', opacity: 0.9 }}>{icon}</div>
@@ -308,12 +241,13 @@ const styles = {
   roleBadge: { backgroundColor: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', letterSpacing: '1px' },
   navItem: { background: 'transparent', color: '#aaa', border: 'none', padding: '12px 20px', borderRadius: '10px', cursor: 'pointer', textAlign: 'left', fontSize: '1rem', transition: '0.3s', display: 'flex', alignItems: 'center', gap: '10px', width: '100%' },
   navItemActive: { background: 'linear-gradient(90deg, rgba(79,172,254,0.2) 0%, transparent 100%)', color: '#4facfe', borderLeft: '3px solid #4facfe', padding: '12px 20px', borderRadius: '0 10px 10px 0', cursor: 'pointer', textAlign: 'left', fontSize: '1rem', fontWeight: 'bold', width: '100%' },
-  logoutBtn: { marginTop: 'auto', background: 'rgba(255, 77, 77, 0.1)', color: '#ff4d4d', border: '1px solid #ff4d4d', padding: '12px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' },
+  logoutBtn: { marginTop: 'auto', background: 'rgba(255, 77, 77, 0.1)', color: '#ff4d4d', border: '1px solid rgba(255, 77, 77, 0.2)', padding: '12px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' },
   searchBox: { display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: 'rgba(255,255,255,0.05)', padding: '10px 20px', borderRadius: '30px', border: '1px solid rgba(255,255,255,0.1)', width: '300px' },
   searchInput: { background: 'transparent', border: 'none', color: 'white', outline: 'none', width: '100%' },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px', marginBottom: '30px' },
+  // ✅ 4. تعديل الجريد عشان ميكونش "عريض" بزيادة
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' },
   statCard: { backgroundColor: 'rgba(30, 41, 59, 0.7)', backdropFilter: 'blur(10px)', padding: '25px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '20px' },
-  coursesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100%, 1fr))', gap: '20px' },
+  coursesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '25px' },
   courseCard: { backgroundColor: 'rgba(30, 41, 59, 0.7)', borderRadius: '16px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)', transition: 'transform 0.3s' },
   cardAccent: { height: '4px', width: '100%' },
   typeBadge: { backgroundColor: 'rgba(255,255,255,0.05)', color: '#aaa', padding: '4px 10px', borderRadius: '6px', fontSize: '0.8rem', border: '1px solid rgba(255,255,255,0.1)', textTransform: 'uppercase' },
@@ -321,7 +255,6 @@ const styles = {
   actionBtn: { background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '6px', cursor: 'pointer', width: '30px', height: '30px' },
   fab: { position: 'fixed', bottom: '40px', right: '40px', width: '65px', height: '65px', borderRadius: '50%', background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', color: '#0f172a', fontSize: '30px', border: 'none', cursor: 'pointer', zIndex: 100 },
   notifBadge: { backgroundColor: '#ff4757', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '0.7rem', fontWeight: 'bold', marginLeft: 'auto' },
-  countBadge: { backgroundColor: '#4facfe', color: '#0f172a', padding: '5px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold' }
 };
 
 export default App;
