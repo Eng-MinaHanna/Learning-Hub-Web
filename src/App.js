@@ -154,12 +154,13 @@ const handleOpenFromCalendar = (courseId) => {
       <div style={{ display: 'flex', minHeight: '100vh', position: 'relative', zIndex: 10 }}>
 
         {/* Sidebar */}
-        <aside style={{ 
-          ...styles.sidebar, 
-          width: isSidebarOpen ? '280px' : '0px', 
-          padding: isSidebarOpen ? '30px 20px' : '0px',
-          opacity: isSidebarOpen ? 1 : 0
-        }}>
+    <aside style={{ 
+  ...styles.sidebar, 
+  width: isSidebarOpen ? '100%' : '0px', // يملأ الشاشة في الموبايل
+  position: window.innerWidth < 768 ? 'fixed' : 'relative', // يبقى فوق المحتوى مش جنبه
+  zIndex: 1000,
+  // ... باقي الاستايلات
+}}>
           <div style={{ textAlign: 'center', marginBottom: '40px', minWidth: '240px' }}>
             <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: '800', color: 'white', lineHeight: '1.2' }}>
               IEEE <span style={{ color: '#4facfe' }}>ET5 SB</span>
@@ -310,9 +311,9 @@ const styles = {
   logoutBtn: { marginTop: 'auto', background: 'rgba(255, 77, 77, 0.1)', color: '#ff4d4d', border: '1px solid #ff4d4d', padding: '12px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' },
   searchBox: { display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: 'rgba(255,255,255,0.05)', padding: '10px 20px', borderRadius: '30px', border: '1px solid rgba(255,255,255,0.1)', width: '300px' },
   searchInput: { background: 'transparent', border: 'none', color: 'white', outline: 'none', width: '100%' },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '40px' },
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px', marginBottom: '30px' },
   statCard: { backgroundColor: 'rgba(30, 41, 59, 0.7)', backdropFilter: 'blur(10px)', padding: '25px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '20px' },
-  coursesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '25px' },
+  coursesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100%, 1fr))', gap: '20px' },
   courseCard: { backgroundColor: 'rgba(30, 41, 59, 0.7)', borderRadius: '16px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)', transition: 'transform 0.3s' },
   cardAccent: { height: '4px', width: '100%' },
   typeBadge: { backgroundColor: 'rgba(255,255,255,0.05)', color: '#aaa', padding: '4px 10px', borderRadius: '6px', fontSize: '0.8rem', border: '1px solid rgba(255,255,255,0.1)', textTransform: 'uppercase' },
