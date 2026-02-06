@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import API from './api'; // ✅ استيراد السنترال
+import API from '.https://learning-hub-et5.vercel.app/api/login'; // ✅ استيراد السنترال
 
 const AuthPage = ({ onLogin }) => {
     const [isLogin, setIsLogin] = useState(true);
