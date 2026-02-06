@@ -1,7 +1,9 @@
 import axios from 'axios';
 
-const API = axios.create({ baseURL: 'https://learning-hub-et5.vercel.app' });
-
+// ✅ الطريقة الصح في ملف الإعدادات
+const API = axios.create({
+    baseURL: 'https://learning-hub-et5.vercel.app/api'
+});
 // السطور اللي جاية دي "سحرية".. بتخلي التوكن يتبعت أوتوماتيك في كل طلب
 API.interceptors.request.use((req) => {
     const token = localStorage.getItem('ieee_token');

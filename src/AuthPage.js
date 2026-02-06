@@ -1,5 +1,11 @@
 import React, { useState } from 'react';
-import API from '.https://learning-hub-et5.vercel.app/api/login'; // ✅ استيراد السنترال
+import axios from 'axios'; // ✅ استيراد مكتبة axios الأصلية
+
+// ✅ تعريف السنترال (الرابط الرئيسي) بطريقة صحيحة كـ String
+const API = axios.create({
+    baseURL: 'https://learning-hub-et5.vercel.app/api',
+    withCredentials: true // مهم عشان ملفات الـ Token والـ Cookies
+});
 
 const AuthPage = ({ onLogin }) => {
     const [isLogin, setIsLogin] = useState(true);
@@ -20,11 +26,11 @@ const AuthPage = ({ onLogin }) => {
         e.preventDefault();
         setLoading(true);
 
-        // ✅ التعديل هنا: نحدد المسار فقط بدون localhost
+        // الرابط النهائي هيكون baseURL + endpoint
         const endpoint = isLogin ? '/login' : '/register';
 
         try {
-            // ✅ التعديل هنا: استخدمنا API بدلاً من axios
+            // استخدام السنترال (API) اللي عرفناه فوق
             const res = await API.post(endpoint, formData);
 
             if (res.data.status === "Success") {
@@ -36,6 +42,7 @@ const AuthPage = ({ onLogin }) => {
             }
         } catch (err) {
             console.error(err);
+            // لو ظهر Error هنا، غالباً هيكون بسبب الـ CORS في السيرفر
             alert("❌ Server Connection Error");
         } finally {
             setLoading(false);
@@ -117,7 +124,7 @@ const AuthPage = ({ onLogin }) => {
     );
 };
 
-// الـ Styles كما هي تماماً...
+// ... الـ Styles كما هي في الكود الأصلي
 const styles = {
     container: { minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f172a', fontFamily: "'Cairo', 'Segoe UI', sans-serif", position: 'relative', overflow: 'hidden' },
     backgroundGrid: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundImage: 'radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px)', backgroundSize: '30px 30px', opacity: 0.5, zIndex: 0 },
@@ -133,7 +140,7 @@ const styles = {
     inputGroup: { position: 'relative' },
     input: { width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(0, 0, 0, 0.2)', color: 'white', fontSize: '0.95rem', outline: 'none', boxSizing: 'border-box', transition: '0.3s' },
     select: { width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: '#0f172a', color: 'white', fontSize: '0.95rem', outline: 'none', boxSizing: 'border-box' },
-    secretInput: { width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #eab308', backgroundColor: 'rgba(234, 179, 8, 0.05)', color: '#fde047', fontSize: '0.95rem', outline: 'none', boxSizing: 'border-box', placeholderColor: '#fde047' },
+    secretInput: { width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #eab308', backgroundColor: 'rgba(234, 179, 8, 0.05)', color: '#fde047', fontSize: '0.95rem', outline: 'none', boxSizing: 'border-box' },
     submitBtn: { padding: '15px', marginTop: '10px', background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', color: '#0f172a', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '1rem', cursor: 'pointer', boxShadow: '0 5px 20px rgba(79, 172, 254, 0.3)', transition: 'transform 0.2s' },
     forgotPass: { textAlign: 'center', marginTop: '15px', color: '#64748b', fontSize: '0.85rem' },
     contactSupport: { color: '#25D366', cursor: 'pointer', marginLeft: '5px', textDecoration: 'none', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '5px' }
