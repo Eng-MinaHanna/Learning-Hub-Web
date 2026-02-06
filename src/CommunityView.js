@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import API from './api'; // ✅ استخدام السنترال
+import API from './api'; 
 import UserProfileModal from './UserProfileModal';
 
 const CommunityView = () => {
@@ -35,12 +35,10 @@ const CommunityView = () => {
     };
 
     const fetchReactions = () => {
-        // ✅ تم التعديل لـ API والمسار المختصر
         API.get('/reactions').then(res => setUserReactions(res.data)).catch(err => console.error(err));
     };
 
     const fetchComments = (postId) => {
-        // ✅ تم التعديل لـ API والمسار المختصر
         API.get(`/comments/${postId}`).then(res => {
             setPostComments(prev => ({ ...prev, [postId]: res.data }));
         }).catch(err => console.error(err));
@@ -61,12 +59,12 @@ const CommunityView = () => {
         formData.append('user_id', user.id);
         formData.append('user_name', user.name);
         formData.append('user_role', user.role);
+        // ✅ نبعت لينك الصورة السحابية الحالي
         formData.append('user_avatar', user.profile_pic || '');
         formData.append('content', newPost);
         if (image) formData.append('image', image);
 
         try {
-            // ✅ تم التعديل لـ API
             await API.post('/posts/add', formData);
             setNewPost(""); setImage(null); setPreview(null);
             fetchPosts();
@@ -77,7 +75,6 @@ const CommunityView = () => {
 
     const handleDelete = (id) => {
         if (window.confirm("Delete this post?")) {
-            // ✅ تم التعديل لـ API
             API.delete(`/posts/delete/${id}`).then(() => {
                 fetchPosts();
                 fetchReactions();
@@ -91,14 +88,12 @@ const CommunityView = () => {
     };
 
     const saveEdit = async (id) => {
-        // ✅ تم التعديل لـ API
         await API.put(`/posts/update/${id}`, { content: editContent });
         setEditingPostId(null);
         fetchPosts();
     };
 
     const handleReact = async (postId, type) => {
-        // ✅ تم التعديل لـ API
         await API.post('/posts/react', {
             post_id: postId,
             user_id: user.id,
@@ -126,12 +121,11 @@ const CommunityView = () => {
         const text = commentInputs[postId];
         if (!text) return;
 
-        // ✅ تم التعديل لـ API
         await API.post('/comments/add', {
             post_id: postId,
             user_id: user.id,
             user_name: user.name,
-            user_avatar: user.profile_pic || '',
+            user_avatar: user.profile_pic || '', // ✅ توحيد الصورة السحابية
             comment_text: text
         });
 
@@ -142,7 +136,6 @@ const CommunityView = () => {
 
     const deleteComment = async (commentId, postId) => {
         if (window.confirm("Delete this comment?")) {
-            // ✅ تم التعديل لـ API
             await API.delete(`/comments/delete/${commentId}`);
             fetchComments(postId);
             fetchPosts();
@@ -156,7 +149,6 @@ const CommunityView = () => {
 
     const saveCommentEdit = async (commentId, postId) => {
         if (!editCommentText.trim()) return;
-        // ✅ تم التعديل لـ API
         await API.put(`/comments/update/${commentId}`, { comment_text: editCommentText });
         setEditingCommentId(null);
         fetchComments(postId);
@@ -168,7 +160,12 @@ const CommunityView = () => {
 
             <div style={styles.createBox}>
                 <div style={{ display: 'flex', gap: '15px' }}>
-                    <div style={styles.avatar}>{user.name.charAt(0)}</div>
+                    {/* ✅ عرض صورة الناشر الحالية من السحابة في صندوق الكتابة */}
+                    <div style={styles.avatar}>
+                        {user.profile_pic ? (
+                            <img src={user.profile_pic} alt="Me" style={{width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover'}} />
+                        ) : user.name.charAt(0)}
+                    </div>
                     <textarea style={styles.textArea} placeholder={`What's on your mind, ${user.name}?`} value={newPost} onChange={(e) => setNewPost(e.target.value)} />
                 </div>
                 {preview && <img src={preview} alt="Preview" style={styles.imagePreview} />}
@@ -185,7 +182,12 @@ const CommunityView = () => {
                         <div key={post.id} style={styles.postCard}>
                             <div style={styles.postHeader}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setSelectedUserId(post.user_id)}>
-                                    {post.user_avatar ? <img src={`http://localhost:5000/${post.user_avatar}`} style={styles.avatarSmall} alt="Av" /> : <div style={styles.avatarSmallPlaceholder}>{post.user_name.charAt(0)}</div>}
+                                    {/* ✅ تم حذف localhost - الصورة تقرأ من اللينك المباشر */}
+                                    {post.user_avatar ? (
+                                        <img src={post.user_avatar} style={styles.avatarSmall} alt="Av" />
+                                    ) : (
+                                        <div style={styles.avatarSmallPlaceholder}>{post.user_name.charAt(0)}</div>
+                                    )}
                                     <div>
                                         <div style={{ fontWeight: 'bold', color: 'white' }}>{post.user_name}</div>
                                         <div style={{ fontSize: '0.8rem', color: '#aaa' }}>{post.user_role} • {new Date(post.created_at).toLocaleDateString()}</div>
@@ -211,7 +213,8 @@ const CommunityView = () => {
                                 <p style={styles.content}>{post.content}</p>
                             )}
 
-                            {post.post_image && <img src={`http://localhost:5000/${post.post_image}`} alt="Post" style={styles.postImage} />}
+                            {/* ✅ تم حذف localhost - صورة البوست تقرأ من اللينك المباشر */}
+                            {post.post_image && <img src={post.post_image} alt="Post" style={styles.postImage} />}
 
                             <div style={styles.statsRow}>
                                 <span>❤️ {post.reaction_count} Reactions</span>
@@ -305,12 +308,12 @@ const CommunityView = () => {
     );
 };
 
-// Styles remain exactly the same as you provided...
+// ... Styles كما هي تماماً ...
 const styles = {
     container: { maxWidth: '700px', margin: '0 auto', paddingBottom: '50px' },
     header: { color: 'white', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '15px' },
     createBox: { backgroundColor: 'rgba(30, 41, 59, 0.6)', padding: '20px', borderRadius: '15px', marginBottom: '30px', border: '1px solid rgba(255,255,255,0.05)' },
-    avatar: { width: '40px', height: '40px', borderRadius: '50%', background: '#4facfe', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold' },
+    avatar: { width: '40px', height: '40px', borderRadius: '50%', background: '#4facfe', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', overflow:'hidden' },
     textArea: { flex: 1, background: 'transparent', border: 'none', color: 'white', fontSize: '1rem', outline: 'none', resize: 'none', minHeight: '60px' },
     actions: { display: 'flex', justifyContent: 'space-between', marginTop: '10px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' },
     uploadBtn: { cursor: 'pointer', color: '#4facfe', display: 'flex', alignItems: 'center', gap: '5px' },
@@ -345,7 +348,6 @@ const styles = {
 const styleSheet = document.createElement("style");
 styleSheet.innerText = `
   .reactionWrapper:hover .reactionPopup { opacity: 1 !important; pointer-events: all !important; transform: translateX(-50%) translateY(-10px); }
-  .reactionPopup::after { content: ""; position: absolute; top: 100%; left: 0; width: 100%; height: 20px; background: transparent; }
   .reactionIcon:hover { transform: scale(1.3); }
 `;
 document.head.appendChild(styleSheet);
