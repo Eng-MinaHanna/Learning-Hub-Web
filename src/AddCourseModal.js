@@ -7,24 +7,33 @@ const AddCourseModal = ({ onClose, onAdd, currentUser }) => {
     });
     const [file, setFile] = useState(null);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        const data = new FormData();
-        Object.keys(formData).forEach(key => data.append(key, formData[key]));
-        if (file) data.append('material', file);
-        if (currentUser) data.append('user_id', currentUser.id);
+   const handleSubmit = async (e) => {
+    e.preventDefault();
+    const data = new FormData();
+    
+    // ✅ إضافة البيانات النصية
+    Object.keys(formData).forEach(key => data.append(key, formData[key]));
+    
+    // ✅ التأكد من اسم الحقل 'material' ليتوافق مع السيرفر
+    if (file) data.append('material', file);
+    if (currentUser) data.append('user_id', currentUser.id);
 
-        try {
-            // ✅ التعديل هنا: استخدمنا API.post والمسار المختصر
-            await API.post('/activities/add', data);
-            alert("تم إنشاء الكورس بنجاح! 🎓");
-            onAdd();
-            onClose();
-        } catch (error) {
-            console.error(error);
-            alert("حدث خطأ أثناء الإضافة ❌");
-        }
-    };
+    try {
+        // ✅ إرسال الطلب مع التوكن والـ Content-Type الصحيح
+        await API.post('/activities/add', data, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+        
+        alert("Success! Activity created on Cloud ☁️");
+        onAdd();
+        onClose();
+    } catch (error) {
+        console.error(error);
+        alert("❌ Error: " + (error.response?.data?.message || "Something went wrong"));
+    }
+};
 
     return (
         <div style={styles.overlay}>
