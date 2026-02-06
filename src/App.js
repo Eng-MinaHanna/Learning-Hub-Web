@@ -14,7 +14,7 @@ import AdminUsersView from './AdminUsersView';
 import NotificationsModal from './NotificationsModal';
 
 function App() {
-  // 🛡️ تأمين قراءة المستخدم لمنع الـ Crash
+  // 🛡️ 1. قراءة المستخدم بأمان تام
   const [user, setUser] = useState(() => {
     try {
       const savedUser = localStorage.getItem('ieee_user');
@@ -23,7 +23,7 @@ function App() {
   });
 
   const [showAuth, setShowAuth] = useState(false);
-  const [activities, setActivities] = useState([]); 
+  const [activities, setActivities] = useState([]); // تأمين البداية بـ Array
   const [stats, setStats] = useState({ total_activities: 0, total_students: 0, total_workshops: 0 });
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [editingActivity, setEditingActivity] = useState(null);
@@ -35,27 +35,25 @@ function App() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+  // حفظ التابة الحالية
   useEffect(() => {
     localStorage.setItem('activeView', currentView);
   }, [currentView]);
 
+  // 🛡️ 2. جلب البيانات بتأمين عالي
   const fetchData = async () => {
     try {
       const actsRes = await API.get('/activities/all');
       const data = Array.isArray(actsRes.data) ? actsRes.data : [];
       setActivities(data);
 
-      const savedCourseId = localStorage.getItem('activeCourseId');
-      if (savedCourseId) {
-        const courseToRestore = data.find(c => c.id === parseInt(savedCourseId));
-        if (courseToRestore) setSelectedCourse(courseToRestore);
-      }
-
       if (user?.email) {
         data.forEach(course => {
-          API.get(`/progress/calculate/${course.id}/${user.email}`)
-            .then(res => setProgressData(prev => ({ ...prev, [course.id]: res.data.percent || 0 })))
-            .catch(() => {});
+          if (course?.id) {
+            API.get(`/progress/calculate/${course.id}/${user.email}`)
+              .then(res => setProgressData(prev => ({ ...prev, [course.id]: res.data?.percent || 0 })))
+              .catch(() => {});
+          }
         });
 
         if (user.role === 'admin') {
@@ -64,8 +62,7 @@ function App() {
         checkNotifications();
       }
     } catch (err) { 
-      console.error("Fetch Error:", err); 
-      setActivities([]); 
+      console.error("Connection Error", err);
     }
   };
 
@@ -80,7 +77,7 @@ function App() {
     fetchData();
     const interval = setInterval(checkNotifications, 60000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user?.id]);
 
   const handleLogin = (userData) => {
     setUser(userData);
@@ -101,6 +98,7 @@ function App() {
     localStorage.setItem('ieee_user', JSON.stringify(newUser));
   };
 
+  // 🛡️ 3. فلترة الكورسات بدون Errors
   const filteredActivities = (activities || []).filter(act =>
     act?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     act?.description?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -108,7 +106,7 @@ function App() {
 
   const handleOpenCourse = (course) => { 
     setSelectedCourse(course); 
-    localStorage.setItem('activeCourseId', course.id); 
+    localStorage.setItem('activeCourseId', course?.id); 
   };
 
   const handleCloseCourse = () => {
@@ -118,7 +116,7 @@ function App() {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("⚠️ أكيد هتمسح الكورس ده؟")) {
+    if (window.confirm("⚠️ هل أنت متأكد من الحذف؟")) {
       try {
         await API.delete(`/activities/delete/${id}`);
         fetchData();
@@ -126,6 +124,7 @@ function App() {
     }
   };
 
+  // --- Render Logic ---
   if (!user) {
     return (
       <div style={styles.appContainer}>
@@ -160,14 +159,14 @@ function App() {
 
           <div style={{ ...styles.userInfo, minWidth: '240px' }}>
             <div style={styles.avatar}>
-              {/* ✅ صورة البروفايل السحابية */}
+              {/* ✅ حماية صورة البروفايل */}
               {user?.profile_pic ? (
                 <img src={user.profile_pic} alt="U" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }} />
-              ) : user?.name?.charAt(0)}
+              ) : (user?.name?.charAt(0) || 'U')}
             </div>
             <div>
               <div style={{ fontWeight: 'bold', color: 'white' }}>{user?.name || "Member"}</div>
-              <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}><span style={styles.roleBadge}>{user?.role?.toUpperCase()}</span></div>
+              <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}><span style={styles.roleBadge}>{user?.role?.toUpperCase() || "STUDENT"}</span></div>
             </div>
           </div>
 
@@ -192,7 +191,12 @@ function App() {
         <main style={{ flex: 1, padding: '40px', overflowY: 'auto', transition: '0.3s' }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px', gap: '20px' }}>
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={styles.toggleBtn}>{isSidebarOpen ? '◀' : '☰'}</button>
-            {currentView === 'dashboard' && !selectedCourse && <h1 style={{ margin: 0, color: 'white', fontSize: '1.5rem' }}>Hello, {user?.name?.split(' ')[0]}! 👋</h1>}
+            {/* ✅ حماية الـ split لمنع الشاشة البيضاء */}
+            {currentView === 'dashboard' && !selectedCourse && (
+               <h1 style={{ margin: 0, color: 'white', fontSize: '1.5rem' }}>
+                 Hello, {user?.name ? user.name.split(' ')[0] : 'Member'}! 👋
+               </h1>
+            )}
           </div>
           
           {currentView === 'dashboard' && !selectedCourse && (
@@ -206,8 +210,8 @@ function App() {
 
               {user?.role === 'admin' && (
                 <div style={styles.statsGrid}>
-                  <DashboardCard title="Total Activities" value={stats.total_activities} icon="📚" color="#4facfe" />
-                  <DashboardCard title="Active Students" value={stats.total_students} icon="👨‍🎓" color="#43e97b" />
+                  <DashboardCard title="Tracks" value={stats.total_activities} icon="📚" color="#4facfe" />
+                  <DashboardCard title="Students" value={stats.total_students} icon="👨‍🎓" color="#43e97b" />
                   <DashboardCard title="Workshops" value={stats.total_workshops} icon="⚡" color="#fa709a" />
                 </div>
               )}
@@ -217,7 +221,7 @@ function App() {
                   filteredActivities.map(act => (
                     <div key={act.id} style={styles.courseCard}>
                       <div style={{ ...styles.cardAccent, backgroundColor: act.type === 'session' ? '#4facfe' : '#fa709a' }}></div>
-                      {/* ✅ عرض صورة الكورس السحابية */}
+                      {/* ✅ عرض صورة الكورس السحابية بأمان */}
                       {act.file_path && <img src={act.file_path} alt="C" style={{width:'100%', height:'160px', objectFit:'cover'}} />}
                       <div style={{ padding: '25px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
@@ -231,16 +235,24 @@ function App() {
                         </div>
                         <h3 style={{ margin: '0 0 10px 0', color: 'white' }}>{act.title}</h3>
                         <p style={{ color: '#aaa', fontSize: '0.9rem', height: '45px', overflow: 'hidden' }}>{act.description}</p>
+                        
+                        <div style={{marginBottom: '15px'}}>
+                          <div style={{fontSize: '12px', color: '#888'}}>Progress: {progressData[act.id] || 0}%</div>
+                          <div style={{width:'100%', height:'4px', background:'rgba(255,255,255,0.1)', marginTop:'5px'}}>
+                            <div style={{width:`${progressData[act.id] || 0}%`, height:'100%', background:'#4facfe'}}></div>
+                          </div>
+                        </div>
+
                         <button onClick={() => handleOpenCourse(act)} style={styles.viewBtn}>Continue ▶️</button>
                       </div>
                     </div>
                   ))
-                ) : <div style={{textAlign:'center', width:'100%', color:'#555'}}>No tracks found</div>}
+                ) : <div style={{textAlign:'center', width:'100%', color:'#555', marginTop: '50px'}}>No tracks found.</div>}
               </div>
             </>
           )}
 
-          {/* Views Rendering */}
+          {/* Views */}
           {currentView === 'home' && <LandingPage user={user} onGetStarted={() => setCurrentView('dashboard')} />}
           {currentView === 'schedule' && <CalendarView onOpenCourse={(id) => { const c = activities.find(a=>a.id===id); if(c) handleOpenCourse(c); }} />}
           {currentView === 'leaderboard' && <LeaderboardView />}
@@ -252,6 +264,7 @@ function App() {
 
       {showAddModal && <AddCourseModal onClose={() => setShowAddModal(false)} onAdd={fetchData} currentUser={user} />}
       {selectedCourse && <CourseDetailsModal course={selectedCourse} onClose={handleCloseCourse} currentUser={user} />}
+      {editingActivity && <EditActivityModal activity={editingActivity} onClose={() => setEditingActivity(null)} onUpdate={fetchData} />}
       {showNotifications && <NotificationsModal userId={user.id} onClose={() => setShowNotifications(false)} />}
       
       {(user.role === 'admin' || user.role === 'instructor') && currentView === 'dashboard' && (
@@ -283,7 +296,7 @@ const styles = {
   roleBadge: { backgroundColor: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', letterSpacing: '1px' },
   navItem: { background: 'transparent', color: '#aaa', border: 'none', padding: '12px 20px', borderRadius: '10px', cursor: 'pointer', textAlign: 'left', fontSize: '1rem', transition: '0.3s', display: 'flex', alignItems: 'center', gap: '10px', width: '100%' },
   navItemActive: { background: 'linear-gradient(90deg, rgba(79,172,254,0.2) 0%, transparent 100%)', color: '#4facfe', borderLeft: '3px solid #4facfe', padding: '12px 20px', borderRadius: '0 10px 10px 0', cursor: 'pointer', textAlign: 'left', fontSize: '1rem', fontWeight: 'bold', width: '100%' },
-  logoutBtn: { marginTop: 'auto', background: 'rgba(255, 77, 77, 0.1)', color: '#ff4d4d', border: '1px solid rgba(255, 77, 77, 0.2)', padding: '12px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' },
+  logoutBtn: { marginTop: 'auto', background: 'rgba(255, 77, 77, 0.1)', color: '#ff4d4d', border: '1px solid #ff4d4d', padding: '12px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' },
   searchBox: { display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: 'rgba(255,255,255,0.05)', padding: '10px 20px', borderRadius: '30px', border: '1px solid rgba(255,255,255,0.1)', width: '300px' },
   searchInput: { background: 'transparent', border: 'none', color: 'white', outline: 'none', width: '100%' },
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '40px' },
