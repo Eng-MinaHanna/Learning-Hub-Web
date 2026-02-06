@@ -14,7 +14,16 @@ import AdminUsersView from './AdminUsersView';
 import NotificationsModal from './NotificationsModal';
 
 function App() {
-  const [user, setUser] = useState(JSON.parse(localStorage.getItem('ieee_user')) || null);
+  // ✅ 1. قراءة المستخدم بأمان (عشان لو الـ LocalStorage فاضي الموقع ما يفرقعش)
+  const [user, setUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('ieee_user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
   const [showAuth, setShowAuth] = useState(false);
   const [activities, setActivities] = useState([]);
   const [stats, setStats] = useState({ total_activities: 0, total_students: 0, total_workshops: 0 });
@@ -24,14 +33,15 @@ function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentView, setCurrentView] = useState(localStorage.getItem('activeView') || 'dashboard');
   const [progressData, setProgressData] = useState({});
-
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+  // ✅ 2. حفظ الصفحة الحالية
   useEffect(() => {
     localStorage.setItem('activeView', currentView);
   }, [currentView]);
+  
 
   // ✅ تم حذف الـ Interceptor اليدوي لأنه موجود في api.js
 
