@@ -42,20 +42,20 @@ const SettingsView = ({ user, onUpdateUser }) => {
         if (avatar) data.append('avatar', avatar);
 
         try {
-            // ✅ سحب التوكن من التخزين المحلي
+            // ✅ 1. سحب التوكن من التخزين
             const token = localStorage.getItem('ieee_token');
 
-            // ✅ استخدام السنترال API مع إرسال التوكن في الـ Headers
+            // ✅ 2. استخدام السنترال API بدل axios المباشر
+            // الرابط هيكون تلقائياً https://learning-hub-et5.vercel.app/api/user/update
             const res = await API.put('/user/update', data, {
                 headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'multipart/form-data'
+                    'Authorization': `Bearer ${token}`, // إرسال تصريح الدخول
+                    'Content-Type': 'multipart/form-data' // مهم عشان الصور
                 }
             });
 
             if (res.data.status === "Success") {
                 alert("✅ Profile Updated Successfully!");
-
                 const updatedUser = {
                     ...user,
                     name: formData.name,
@@ -63,20 +63,15 @@ const SettingsView = ({ user, onUpdateUser }) => {
                     phone: formData.phone,
                     profile_pic: res.data.newProfilePic || user.profile_pic
                 };
-
-                // تحديث البيانات في اللوكال ستوريج
                 localStorage.setItem('ieee_user', JSON.stringify(updatedUser));
                 onUpdateUser(updatedUser);
-
-                setFormData(prev => ({ ...prev, oldPassword: '', newPassword: '' }));
             } else {
                 alert("❌ " + res.data.message);
             }
         } catch (err) {
-            console.error("Update Error:", err);
-            // عرض رسالة الخطأ القادمة من السيرفر إن وجدت
-            const errorMsg = err.response?.data?.message || "Error updating profile";
-            alert("❌ " + errorMsg);
+            console.error(err);
+            // لو الخطأ سببه الـ Vercel Read-only هيظهر هنا
+            alert("❌ Error: " + (err.response?.data?.message || "Check Console for details"));
         } finally {
             setLoading(false);
         }
