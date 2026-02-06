@@ -27,6 +27,29 @@
 .App-link {
   color: #61dafb;
 }
+/* تنسيقات الموبايل */
+@media (max-width: 768px) {
+  /* تصغير البادينج في الشاشة الرئيسية */
+  main {
+    padding: 15px !important;
+  }
+
+  /* جعل الكروت تأخذ العرض الكامل */
+  .courseCard {
+    min-width: 100% !important;
+  }
+
+  /* إخفاء نصوص المنيو لو المساحة ضيقة أو تصغير الخط */
+  h1 {
+    font-size: 1.2rem !important;
+  }
+
+  /* جعل المودال (النافذة المنبثقة) تأخذ عرض الشاشة كله */
+  .modal {
+    width: 95% !important;
+    margin: 10px !important;
+  }
+}
 
 @keyframes App-logo-spin {
   from {
