@@ -172,8 +172,18 @@ function App() {
 
           <div style={{ ...styles.userInfo, minWidth: '240px' }}>
             <div style={styles.avatar}>
-              {user.profile_pic ? <img src={`http://localhost:5000/${user.profile_pic}`} alt="User" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }} /> : user.name.charAt(0)}
-            </div>
+  {/* ✅ التعديل: نستخدم اللينك اللي جاي من الداتا مباشرة بدون localhost */}
+  {user?.profile_pic ? (
+    <img 
+      src={user.profile_pic} 
+      alt="User" 
+      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }} 
+      onError={(e) => { e.target.src = 'https://via.placeholder.com/100'; }} // حماية لو اللينك باظ
+    />
+  ) : (
+    user?.name?.charAt(0)
+  )}
+</div>
             <div>
               <div style={{ fontWeight: 'bold', color: 'white' }}>{user.name}</div>
               <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}><span style={styles.roleBadge}>{user.role.toUpperCase()}</span></div>
