@@ -91,7 +91,18 @@ function App() {
     setSelectedCourse(null); 
     setCurrentView('dashboard');
   };
-
+  
+const handleOpenFromCalendar = (courseId) => {
+    if (!activities || activities.length === 0) return; // لو الداتا لسه مجاتش متعملش حاجة
+    const courseToOpen = activities.find(c => c.id === parseInt(courseId));
+    if (courseToOpen) {
+        handleOpenCourse(courseToOpen);
+        setCurrentView('dashboard');
+    } else {
+        console.log("Course not found yet...");
+    }
+};
+  
   const handleUserUpdate = (updatedData) => {
     const newUser = { ...user, ...updatedData };
     setUser(newUser);
