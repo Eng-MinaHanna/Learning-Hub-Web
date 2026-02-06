@@ -20,7 +20,6 @@ function App() {
     } catch (e) { return null; }
   });
 
-  const [showAuth, setShowAuth] = useState(false);
   const [activities, setActivities] = useState([]); 
   const [stats, setStats] = useState({ total_activities: 0, total_students: 0, total_workshops: 0 });
   const [selectedCourse, setSelectedCourse] = useState(null);
@@ -29,15 +28,16 @@ function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentView, setCurrentView] = useState(localStorage.getItem('activeView') || 'home');
   const [progressData, setProgressData] = useState({});
-  const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showAuth, setShowAuth] = useState(false);
   
-  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  // ✅ حساسات الموبايل والسايد بار المطور
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
 
   useEffect(() => {
     const handleResize = () => {
-      const mobile = window.innerWidth < 768;
+      const mobile = window.innerWidth < 1024;
       setIsMobile(mobile);
       if (!mobile) setIsSidebarOpen(true);
     };
@@ -47,90 +47,41 @@ function App() {
 
   useEffect(() => {
     localStorage.setItem('activeView', currentView);
-  }, [currentView]);
+    if (isMobile) setIsSidebarOpen(false); // قفل السايد بار تلقائياً عند تغيير التابة في الموبايل
+  }, [currentView, isMobile]);
 
   const fetchData = async () => {
     try {
       const actsRes = await API.get('/activities/all');
       const data = Array.isArray(actsRes.data) ? actsRes.data : [];
       setActivities(data);
-
       if (user?.email) {
         data.forEach(course => {
-          if (course?.id) {
-            API.get(`/progress/calculate/${course.id}/${user.email}`)
-              .then(res => setProgressData(prev => ({ ...prev, [course.id]: res.data?.percent || 0 })))
-              .catch(() => {});
-          }
+          API.get(`/progress/calculate/${course.id}/${user.email}`)
+            .then(res => setProgressData(prev => ({ ...prev, [course.id]: res.data?.percent || 0 })));
         });
         if (user.role === 'admin') {
-          API.get('/stats').then(res => setStats(res.data || stats)).catch(() => {});
+          API.get('/stats').then(res => setStats(res.data || stats));
         }
-        checkNotifications();
       }
-    } catch (err) { console.error("Fetch Error", err); }
+    } catch (err) { console.error(err); }
   };
 
-  const checkNotifications = () => {
-    if (!user?.id) return;
-    API.get(`/notifications/${user.id}`)
-      .then(res => setUnreadCount(Array.isArray(res.data) ? res.data.filter(n => !n.is_read).length : 0))
-      .catch(() => {});
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [user?.id]);
-
-  const handleLogin = (userData) => {
-    setUser(userData);
-    localStorage.setItem('ieee_user', JSON.stringify(userData));
-    setCurrentView('dashboard');
-  };
+  useEffect(() => { fetchData(); }, [user?.id]);
 
   const handleLogout = () => {
-    setUser(null); 
-    localStorage.clear();
-    setSelectedCourse(null); 
-    setCurrentView('home');
-  };
-
-  const handleUserUpdate = (updatedData) => {
-    const newUser = { ...user, ...updatedData };
-    setUser(newUser);
-    localStorage.setItem('ieee_user', JSON.stringify(newUser));
+    setUser(null); localStorage.clear(); setCurrentView('home');
   };
 
   const filteredActivities = (activities || []).filter(act =>
-    act?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    act?.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    act?.title?.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const handleOpenCourse = (course) => { 
-    setSelectedCourse(course); 
-    localStorage.setItem('activeCourseId', course?.id); 
-  };
-
-  const handleCloseCourse = () => {
-    setSelectedCourse(null);
-    localStorage.removeItem('activeCourseId');
-    fetchData();
-  };
-
-  const handleDelete = async (id) => {
-    if (window.confirm("⚠️ هل أنت متأكد من الحذف؟")) {
-      try {
-        await API.delete(`/activities/delete/${id}`);
-        fetchData();
-      } catch (err) { alert("Error deleting"); }
-    }
-  };
 
   if (!user) {
     return (
       <div style={styles.appContainer}>
         <div style={styles.backgroundGrid}></div>
-        {showAuth ? <AuthPage onLogin={handleLogin} /> : <LandingPage onGetStarted={() => setShowAuth(true)} />}
+        {showAuth ? <AuthPage onLogin={(u) => {setUser(u); setShowAuth(false);}} /> : <LandingPage onGetStarted={() => setShowAuth(true)} />}
       </div>
     );
   }
@@ -138,155 +89,185 @@ function App() {
   return (
     <div style={styles.appContainer}>
       <div style={styles.backgroundGrid}></div>
-      <div style={{ display: 'flex', minHeight: '100vh', position: 'relative', zIndex: 10 }}>
+      
+      {/* ✅ زرار السايد بار (ثابت ومحمي) */}
+      <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={{...styles.toggleBtn, left: isSidebarOpen && !isMobile ? '290px' : '20px'}}>
+        {isSidebarOpen ? '◀' : '☰'}
+      </button>
 
-        {/* Sidebar */}
+      <div style={{ display: 'flex', minHeight: '100vh', position: 'relative' }}>
+        
+        {/* ✅ سايد بار بتصميم زجاجي (Glass Sidebar) */}
         <aside style={{ 
           ...styles.sidebar, 
-          width: isSidebarOpen ? (isMobile ? '80%' : '280px') : '0px', 
-          position: isMobile ? 'fixed' : 'relative',
-          opacity: isSidebarOpen ? 1 : 0,
-          left: isSidebarOpen ? '0px' : (isMobile ? '-100%' : '0px'),
-          zIndex: 2000
+          width: isSidebarOpen ? '280px' : '0px', 
+          transform: (isMobile && !isSidebarOpen) ? 'translateX(-100%)' : 'translateX(0)',
+          visibility: (!isSidebarOpen && !isMobile) ? 'hidden' : 'visible'
         }}>
-          <div style={{ textAlign: 'center', marginBottom: '40px', minWidth: '240px' }}>
-            <h2 style={{ color: 'white', letterSpacing: '1px' }}>IEEE <span style={{ color: '#4facfe' }}>ET5</span></h2>
+          <div style={{ padding: '40px 25px 20px', textAlign: 'center' }}>
+            <h2 style={styles.brandText}>IEEE <span style={{ color: '#4facfe' }}>HUB</span></h2>
+            <div style={styles.divider}></div>
           </div>
 
-          <div style={{ ...styles.userInfo, minWidth: '240px' }}>
+          <div style={styles.userInfo}>
             <div style={styles.avatar}>
-              {user?.profile_pic ? <img src={user.profile_pic} alt="U" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (user?.name?.charAt(0) || 'U')}
+              {user?.profile_pic ? <img src={user.profile_pic} alt="P" style={styles.avatarImg} /> : user?.name?.charAt(0)}
             </div>
-            <div>
-              <div style={{ fontWeight: 'bold', color: 'white', fontSize: '0.9rem' }}>{user?.name}</div>
-              <div style={styles.roleBadge}>{user?.role?.toUpperCase()}</div>
+            <div style={{overflow:'hidden'}}>
+              <div style={styles.userName}>{user?.name}</div>
+              <div style={styles.userRole}>{user?.role}</div>
             </div>
           </div>
 
-          <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '240px' }}>
-            {/* ✅ رجوع تابة الصفحة الرئيسية */}
-            <button onClick={() => { setCurrentView('home'); if(isMobile) setIsSidebarOpen(false); }} style={currentView === 'home' ? styles.navItemActive : styles.navItem}>🏠 Home</button>
-            <button onClick={() => { setCurrentView('dashboard'); if(isMobile) setIsSidebarOpen(false); }} style={currentView === 'dashboard' ? styles.navItemActive : styles.navItem}>📊 Dashboard</button>
-            <button onClick={() => { setCurrentView('schedule'); if(isMobile) setIsSidebarOpen(false); }} style={currentView === 'schedule' ? styles.navItemActive : styles.navItem}>📅 Schedule</button>
-            <button onClick={() => { setCurrentView('leaderboard'); if(isMobile) setIsSidebarOpen(false); }} style={currentView === 'leaderboard' ? styles.navItemActive : styles.navItem}>🏆 Leaderboard</button>
-            {user?.role === 'admin' && <button onClick={() => { setCurrentView('users'); if(isMobile) setIsSidebarOpen(false); }} style={currentView === 'users' ? styles.navItemActive : styles.navItem}>👥 Users</button>}
-            <button onClick={() => { setCurrentView('community'); if(isMobile) setIsSidebarOpen(false); }} style={currentView === 'community' ? styles.navItemActive : styles.navItem}>🌍 Community</button>
-            <button onClick={() => { setCurrentView('settings'); if(isMobile) setIsSidebarOpen(false); }} style={currentView === 'settings' ? styles.navItemActive : styles.navItem}>⚙️ Settings</button>
+          <nav style={styles.navStack}>
+            <NavBtn icon="🏠" label="Home" active={currentView === 'home'} onClick={() => setCurrentView('home')} />
+            <NavBtn icon="📊" label="Dashboard" active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} />
+            <NavBtn icon="📅" label="Schedule" active={currentView === 'schedule'} onClick={() => setCurrentView('schedule')} />
+            <NavBtn icon="🏆" label="Leaderboard" active={currentView === 'leaderboard'} onClick={() => setCurrentView('leaderboard')} />
+            {user?.role === 'admin' && <NavBtn icon="👥" label="Admin Panel" active={currentView === 'users'} onClick={() => setCurrentView('users')} />}
+            <NavBtn icon="🌍" label="Community" active={currentView === 'community'} onClick={() => setCurrentView('community')} />
+            <NavBtn icon="⚙️" label="Settings" active={currentView === 'settings'} onClick={() => setCurrentView('settings')} />
+            
             <button onClick={handleLogout} style={styles.logoutBtn}>🚪 Logout</button>
           </nav>
         </aside>
 
-        {/* Main Content */}
+        {/* ✅ محتوى الصفحة محمي من التمطيط */}
         <main style={{ 
-          flex: 1, 
-          padding: isMobile ? '20px' : '40px', 
-          maxWidth: (isSidebarOpen && !isMobile) ? 'calc(100% - 280px)' : '100%',
-          transition: '0.3s'
+          ...styles.mainArea, 
+          marginLeft: (isSidebarOpen && !isMobile) ? '280px' : '0px',
+          width: (isSidebarOpen && !isMobile) ? 'calc(100% - 280px)' : '100%'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '30px', gap: '20px', justifyContent: 'space-between' }}>
-             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={styles.toggleBtn}>{isSidebarOpen ? '◀' : '☰'}</button>
-                {currentView === 'dashboard' && !selectedCourse && <h1 style={{ color: 'white', margin: 0, fontSize: isMobile ? '1.2rem' : '1.8rem' }}>Welcome, {user?.name?.split(' ')[0]}! 👋</h1>}
-             </div>
+          <div style={styles.pageHeader}>
              {currentView === 'dashboard' && !selectedCourse && (
-               <div style={styles.searchBox}>
-                  <input type="text" placeholder="Search tracks..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={styles.searchInput} />
+                <h1 style={styles.welcomeText}>Hello, {user?.name?.split(' ')[0]}! ⚡</h1>
+             )}
+             {currentView === 'dashboard' && (
+               <div style={styles.searchContainer}>
+                  <input placeholder="Search tracks..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={styles.searchInput} />
                </div>
              )}
           </div>
           
           {currentView === 'dashboard' && !selectedCourse && (
-            <>
+            <div style={styles.contentFadeIn}>
               <div style={styles.statsGrid}>
                 <DashboardCard title="Total Tracks" value={stats.total_activities} icon="📚" color="#4facfe" />
-                <DashboardCard title="Active Students" value={stats.total_students} icon="👨‍🎓" color="#43e97b" />
+                <DashboardCard title="Total Students" value={stats.total_students} icon="👨‍🎓" color="#43e97b" />
                 <DashboardCard title="Workshops" value={stats.total_workshops} icon="⚡" color="#fa709a" />
               </div>
 
               <div style={styles.coursesGrid}>
                 {filteredActivities.map(act => (
                   <div key={act.id} style={styles.courseCard}>
-                    <div style={styles.cardImageContainer}>
-                       {act.file_path ? <img src={act.file_path} alt="C" style={styles.cardImage} /> : <div style={styles.cardPlaceholder}>IEEE</div>}
-                       <span style={styles.typeBadgeOnImage}>{act.type}</span>
+                    <div style={styles.imageBox}>
+                       {act.file_path ? <img src={act.file_path} alt="C" style={styles.courseImg} /> : <div style={styles.coursePlaceholder}>IEEE</div>}
+                       <div style={styles.typeBadge}>{act.type}</div>
                     </div>
                     <div style={{ padding: '20px' }}>
-                      <h3 style={{ color: 'white', margin: '0 0 10px 0', fontSize: '1.1rem' }}>{act.title}</h3>
-                      <div style={styles.progressContainer}>
-                         <div style={{fontSize: '11px', color: '#888', marginBottom: '5px'}}>Progress: {progressData[act.id] || 0}%</div>
-                         <div style={styles.progressBarBg}><div style={{...styles.progressBarFill, width: `${progressData[act.id] || 0}%`}}></div></div>
+                      <h3 style={styles.courseTitle}>{act.title}</h3>
+                      <div style={styles.progressSection}>
+                         <div style={styles.progressText}>Progress: {progressData[act.id] || 0}%</div>
+                         <div style={styles.barBg}><div style={{...styles.barFill, width: `${progressData[act.id] || 0}%`}}></div></div>
                       </div>
-                      <div style={{display:'flex', gap:'10px', marginTop: '15px'}}>
-                         <button onClick={() => handleOpenCourse(act)} style={styles.viewBtn}>Continue ▶️</button>
-                         {user.role === 'admin' && (
-                           <button onClick={() => handleDelete(act.id)} style={styles.deleteBtnSmall}>🗑️</button>
-                         )}
-                      </div>
+                      <button onClick={() => setSelectedCourse(act)} style={styles.continueBtn}>Continue Learning ▶️</button>
                     </div>
                   </div>
                 ))}
               </div>
-            </>
+            </div>
           )}
 
+          {/* Views المتبقية كما هي */}
           {currentView === 'home' && <LandingPage user={user} onGetStarted={() => setCurrentView('dashboard')} />}
-          {currentView === 'schedule' && <CalendarView onOpenCourse={handleOpenCourse} />}
+          {currentView === 'schedule' && <CalendarView onOpenCourse={(c)=>setSelectedCourse(activities.find(a=>a.id===c))} />}
           {currentView === 'leaderboard' && <LeaderboardView />}
           {currentView === 'users' && <AdminUsersView currentUser={user} />}
           {currentView === 'community' && <CommunityView />}
-          {currentView === 'settings' && <SettingsView user={user} onUpdateUser={handleUserUpdate} />}
+          {currentView === 'settings' && <SettingsView user={user} onUpdateUser={(u)=>setUser({...user,...u})} />}
         </main>
       </div>
 
       {showAddModal && <AddCourseModal onClose={() => setShowAddModal(false)} onAdd={fetchData} currentUser={user} />}
-      {selectedCourse && <CourseDetailsModal course={selectedCourse} onClose={handleCloseCourse} currentUser={user} />}
+      {selectedCourse && <CourseDetailsModal course={selectedCourse} onClose={() => setSelectedCourse(null)} currentUser={user} />}
       {editingActivity && <EditActivityModal activity={editingActivity} onClose={() => setEditingActivity(null)} onUpdate={fetchData} />}
       
-      {(user.role === 'admin' || user.role === 'instructor') && currentView === 'dashboard' && (
+      {user.role !== 'student' && currentView === 'dashboard' && (
         <button onClick={() => setShowAddModal(true)} style={styles.fab}>+</button>
       )}
     </div>
   );
 }
 
+// مكون زر التنقل
+const NavBtn = ({ icon, label, active, onClick }) => (
+  <button onClick={onClick} style={active ? styles.navActive : styles.navInactive}>
+    <span style={{fontSize: '1.2rem'}}>{icon}</span>
+    {label}
+  </button>
+);
+
 const DashboardCard = ({ title, value, icon, color }) => (
-  <div style={{ ...styles.statCard, borderLeft: `5px solid ${color}` }}>
-    <div style={{ ...styles.iconCircle, backgroundColor: `${color}22`, color: color }}>{icon}</div>
+  <div style={{ ...styles.statCard, borderBottom: `3px solid ${color}` }}>
+    <div style={{ fontSize: '2.2rem' }}>{icon}</div>
     <div>
-      <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>{title}</div>
-      <div style={{ fontSize: '1.6rem', fontWeight: '800', color: 'white' }}>{value}</div>
+      <div style={styles.statLabel}>{title}</div>
+      <div style={styles.statValue}>{value}</div>
     </div>
   </div>
 );
 
+// ✅ الـ CSS المطور (Tech & Glassmorphism)
 const styles = {
-  appContainer: { fontFamily: "'Cairo', 'Segoe UI', sans-serif", backgroundColor: '#0f172a', color: 'white', minHeight: '100vh', position: 'relative', overflowX: 'hidden' },
-  backgroundGrid: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundImage: 'radial-gradient(rgba(79, 172, 254, 0.05) 1.5px, transparent 1.5px)', backgroundSize: '40px 40px', zIndex: 0 },
-  sidebar: { backgroundColor: 'rgba(15, 23, 42, 0.9)', backdropFilter: 'blur(20px)', borderRight: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', transition: 'all 0.3s ease', padding: '30px 20px' },
-  userInfo: { display: 'flex', alignItems: 'center', gap: '12px', padding: '15px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '16px', marginBottom: '30px', border: '1px solid rgba(255,255,255,0.05)' },
-  avatar: { width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #4facfe, #00f2fe)', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', overflow:'hidden', border: '2px solid rgba(79, 172, 254, 0.3)' },
-  roleBadge: { backgroundColor: 'rgba(79, 172, 254, 0.1)', padding: '2px 8px', borderRadius: '6px', fontSize: '10px', color:'#4facfe', marginTop: '4px', display: 'inline-block' },
-  navItem: { background: 'transparent', color: '#94a3b8', border: 'none', padding: '12px 15px', borderRadius: '12px', cursor: 'pointer', textAlign: 'left', width:'100%', display:'flex', alignItems: 'center', gap: '10px', transition: '0.2s', fontSize: '0.95rem' },
-  navItemActive: { background: 'rgba(79, 172, 254, 0.1)', color: '#4facfe', borderRight: '4px solid #4facfe', padding: '12px 15px', width:'100%', fontWeight:'bold', borderRadius: '0 12px 12px 0', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' },
-  logoutBtn: { marginTop: 'auto', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '12px', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' },
-  searchBox: { background: 'rgba(255,255,255,0.05)', padding: '8px 20px', borderRadius: '25px', width: '220px', border: '1px solid rgba(255,255,255,0.1)' },
-  searchInput: { background: 'transparent', border: 'none', color: 'white', outline: 'none', width: '100%', fontSize: '0.85rem' },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' },
-  statCard: { background: 'rgba(30, 41, 59, 0.5)', padding: '20px', borderRadius: '18px', display: 'flex', alignItems: 'center', gap: '15px', border: '1px solid rgba(255,255,255,0.05)', backdropFilter: 'blur(10px)' },
-  iconCircle: { width: '50px', height: '50px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem' },
-  coursesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '25px' },
-  courseCard: { backgroundColor: 'rgba(30, 41, 59, 0.4)', borderRadius: '20px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)', transition: '0.3s' },
-  cardImageContainer: { position: 'relative', height: '160px', overflow: 'hidden' },
-  cardImage: { width: '100%', height: '100%', objectFit: 'cover' },
-  cardPlaceholder: { width: '100%', height: '100%', background: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4facfe', fontWeight: 'bold' },
-  typeBadgeOnImage: { position: 'absolute', top: '12px', right: '12px', background: 'rgba(15, 23, 42, 0.7)', padding: '4px 10px', borderRadius: '8px', fontSize: '10px', backdropFilter: 'blur(5px)', color: '#4facfe', border: '1px solid rgba(79,172,254,0.3)' },
-  viewBtn: { flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: 'linear-gradient(90deg, #4facfe, #00f2fe)', color: '#0f172a', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' },
-  deleteBtnSmall: { width: '45px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '12px', cursor: 'pointer' },
-  progressContainer: { marginTop: '10px' },
-  progressBarBg: { width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px' },
-  progressBarFill: { height: '100%', background: 'linear-gradient(90deg, #4facfe, #43e97b)', borderRadius: '10px', transition: '0.5s' },
-  fab: { position: 'fixed', bottom: '30px', right: '30px', width: '60px', height: '60px', borderRadius: '20px', background: 'linear-gradient(135deg, #4facfe, #00f2fe)', color: '#0f172a', fontSize: '30px', border: 'none', cursor: 'pointer', boxShadow: '0 10px 25px rgba(79,172,254,0.4)', zIndex:100, fontWeight: 'bold' },
-  toggleBtn: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#4facfe', padding: '10px', borderRadius: '12px', cursor: 'pointer', width: '45px', height: '45px' }
+  appContainer: { fontFamily: "'Cairo', sans-serif", backgroundColor: '#050810', color: 'white', minHeight: '100vh', position: 'relative', overflowX: 'hidden' },
+  backgroundGrid: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundImage: 'radial-gradient(rgba(79, 172, 254, 0.03) 2px, transparent 2px)', backgroundSize: '50px 50px', zIndex: 0 },
+  
+  sidebar: { position: 'fixed', top: 0, left: 0, height: '100vh', backgroundColor: 'rgba(10, 15, 28, 0.95)', backdropFilter: 'blur(15px)', borderRight: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)', zIndex: 1000, overflow:'hidden' },
+  brandText: { margin: 0, fontSize: '1.5rem', fontWeight: '900', color: 'white', letterSpacing: '2px' },
+  divider: { height: '1px', background: 'linear-gradient(90deg, transparent, rgba(79,172,254,0.3), transparent)', margin: '15px 0' },
+  
+  userInfo: { display: 'flex', alignItems: 'center', gap: '12px', padding: '15px', margin: '0 20px 30px', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.05)' },
+  avatar: { width: '40px', height: '40px', borderRadius: '12px', background: 'linear-gradient(135deg, #4facfe, #00f2fe)', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', fontSize: '1.1rem', color: '#050810' },
+  avatarImg: { width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' },
+  userName: { fontWeight: 'bold', fontSize: '0.85rem', whiteSpace:'nowrap' },
+  userRole: { fontSize: '10px', color: '#4facfe', textTransform: 'uppercase', letterSpacing: '1px' },
+  
+  navStack: { display: 'flex', flexDirection: 'column', gap: '5px', padding: '0 15px' },
+  navInactive: { background: 'transparent', color: '#64748b', border: 'none', padding: '12px 15px', borderRadius: '12px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px', transition: '0.2s', fontSize: '0.9rem' },
+  navActive: { background: 'rgba(79, 172, 254, 0.1)', color: '#4facfe', borderRight: '3px solid #4facfe', padding: '12px 15px', borderRadius: '4px 12px 12px 4px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px' },
+  
+  logoutBtn: { marginTop: '20px', background: 'rgba(239, 68, 68, 0.05)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.1)', padding: '10px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', fontSize:'0.8rem' },
+  
+  mainArea: { padding: '40px 20px', transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)', position: 'relative', zIndex: 1, minHeight: '100vh' },
+  pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', flexWrap: 'wrap', gap: '20px' },
+  welcomeText: { color: 'white', margin: 0, fontSize: '1.6rem', fontWeight: '800' },
+  
+  searchContainer: { background: 'rgba(255,255,255,0.03)', padding: '10px 20px', borderRadius: '30px', border: '1px solid rgba(255,255,255,0.08)', width: '280px' },
+  searchInput: { background: 'transparent', border: 'none', color: 'white', outline: 'none', width: '100%', fontSize: '0.9rem' },
+  
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '50px' },
+  statCard: { background: 'rgba(15, 23, 42, 0.4)', padding: '25px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '20px', border: '1px solid rgba(255,255,255,0.03)', backdropFilter: 'blur(10px)' },
+  statLabel: { color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' },
+  statValue: { fontSize: '1.8rem', fontWeight: '900', color: 'white' },
+  
+  coursesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '30px' },
+  courseCard: { backgroundColor: 'rgba(30, 41, 59, 0.3)', borderRadius: '24px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)', transition: '0.3s' },
+  imageBox: { position: 'relative', height: '180px' },
+  courseImg: { width: '100%', height: '100%', objectFit: 'cover' },
+  coursePlaceholder: { width: '100%', height: '100%', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4facfe', fontWeight: '900', fontSize: '2rem' },
+  typeBadge: { position: 'absolute', bottom: '15px', left: '15px', background: 'rgba(15, 23, 42, 0.8)', padding: '5px 12px', borderRadius: '10px', fontSize: '10px', fontWeight: 'bold', color: '#4facfe', backdropFilter: 'blur(5px)' },
+  courseTitle: { color: 'white', margin: 0, fontSize: '1.2rem', fontWeight: '700' },
+  
+  progressSection: { margin: '20px 0' },
+  progressText: { fontSize: '11px', color: '#64748b', marginBottom: '8px' },
+  barBg: { width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px' },
+  barFill: { height: '100%', background: 'linear-gradient(90deg, #4facfe, #00f2fe)', borderRadius: '10px', transition: '1s ease' },
+  
+  continueBtn: { width: '100%', padding: '14px', borderRadius: '14px', border: 'none', background: 'linear-gradient(90deg, #4facfe, #00f2fe)', color: '#050810', fontWeight: '900', cursor: 'pointer', transition: '0.3s' },
+  
+  toggleBtn: { position: 'fixed', top: '25px', zIndex: 3000, background: '#4facfe', color: '#050810', border: 'none', borderRadius: '10px', width: '40px', height: '40px', cursor: 'pointer', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 15px rgba(79,172,254,0.4)', transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)' },
+  
+  fab: { position: 'fixed', bottom: '30px', right: '30px', width: '65px', height: '65px', borderRadius: '22px', background: 'linear-gradient(135deg, #4facfe, #00f2fe)', color: '#050810', fontSize: '35px', border: 'none', cursor: 'pointer', boxShadow: '0 15px 30px rgba(79,172,254,0.5)', zIndex: 100, fontWeight: 'bold' }
 };
 
 export default App;
