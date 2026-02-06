@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import API from './api'; // ✅ استيراد السنترال بدل axios الخام
+import API from './api';
 
 const SettingsView = ({ user, onUpdateUser }) => {
     const [formData, setFormData] = useState({
@@ -11,9 +11,8 @@ const SettingsView = ({ user, onUpdateUser }) => {
     });
     const [avatar, setAvatar] = useState(null);
 
-    // ✅ تحديث رابط الصورة ليكون أونلاين بدل localhost
-    const SERVER_URL = "https://learning-hub-et5.vercel.app";
-    const [preview, setPreview] = useState(user.profile_pic ? `${SERVER_URL}/${user.profile_pic}` : null);
+    // ✅ التعديل الأول: الصورة دلوقت لينك كامل من Cloudinary فمش محتاجين SERVER_URL
+    const [preview, setPreview] = useState(user.profile_pic || null);
     const [loading, setLoading] = useState(false);
 
     const handleChange = (e) => {
@@ -24,6 +23,7 @@ const SettingsView = ({ user, onUpdateUser }) => {
         const file = e.target.files[0];
         if (file) {
             setAvatar(file);
+            // ده للعرض المؤقت قبل الرفع
             setPreview(URL.createObjectURL(file));
         }
     };
@@ -42,20 +42,21 @@ const SettingsView = ({ user, onUpdateUser }) => {
         if (avatar) data.append('avatar', avatar);
 
         try {
-            // ✅ 1. سحب التوكن من التخزين
+            // ✅ التعديل الثاني: السنترال (api.js) اللي عملناه بيضيف التوكن أوتوماتيك
+            // لو إنت ضفت الـ Interceptor في api.js مش محتاج الـ headers هنا، بس هنخليها للأمان
             const token = localStorage.getItem('ieee_token');
 
-            // ✅ 2. استخدام السنترال API بدل axios المباشر
-            // الرابط هيكون تلقائياً https://learning-hub-et5.vercel.app/api/user/update
             const res = await API.put('/user/update', data, {
                 headers: {
-                    'Authorization': `Bearer ${token}`, // إرسال تصريح الدخول
-                    'Content-Type': 'multipart/form-data' // مهم عشان الصور
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'multipart/form-data'
                 }
             });
 
             if (res.data.status === "Success") {
                 alert("✅ Profile Updated Successfully!");
+
+                // التعديل الثالث: نأخذ اللينك الجديد اللي راجع من Cloudinary
                 const updatedUser = {
                     ...user,
                     name: formData.name,
@@ -63,15 +64,19 @@ const SettingsView = ({ user, onUpdateUser }) => {
                     phone: formData.phone,
                     profile_pic: res.data.newProfilePic || user.profile_pic
                 };
+
                 localStorage.setItem('ieee_user', JSON.stringify(updatedUser));
                 onUpdateUser(updatedUser);
+
+                // تصفير خانات الباسورد بعد النجاح
+                setFormData(prev => ({ ...prev, oldPassword: '', newPassword: '' }));
             } else {
                 alert("❌ " + res.data.message);
             }
         } catch (err) {
             console.error(err);
-            // لو الخطأ سببه الـ Vercel Read-only هيظهر هنا
-            alert("❌ Error: " + (err.response?.data?.message || "Check Console for details"));
+            const errorMsg = err.response?.data?.message || "Check your internet or server";
+            alert("❌ Error: " + errorMsg);
         } finally {
             setLoading(false);
         }
@@ -151,6 +156,7 @@ const SettingsView = ({ user, onUpdateUser }) => {
     );
 };
 
+// ... الـ Styles كما هي ...
 const styles = {
     container: { maxWidth: '800px', margin: '0 auto', paddingBottom: '50px' },
     header: { color: 'white', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '15px', marginBottom: '30px' },
