@@ -57,10 +57,9 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         return id ? `https://drive.google.com/file/d/${id}/preview` : url;
     };
 
-    // ✅ التعديل التقني الوحيد: حذف localhost لأن الروابط أصبحت سحابية مباشرة
     const getLocalVideoUrl = (link) => {
         if (!link) return "";
-        return link; 
+        return link; // روابط سحابية مباشرة
     };
 
     useEffect(() => {
@@ -81,11 +80,19 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         }
     }, [activeVideo, currentUser]);
 
-    const fetchVideoStatus = () => { API.get(`/progress/status/${course.id}/${activeVideo.id}/${currentUser.email}`).then(res => { setIsVideoWatched(res.data.isWatched); setAttemptsCount(res.data.attempts); setBestScore(res.data.bestScore); }).catch(err => console.log(err)); };
+    const fetchVideoStatus = () => { 
+        if(!activeVideo?.id) return;
+        API.get(`/progress/status/${course.id}/${activeVideo.id}/${currentUser.email}`)
+            .then(res => { 
+                setIsVideoWatched(res.data.isWatched); 
+                setAttemptsCount(res.data.attempts || 0); 
+                setBestScore(res.data.bestScore || 0); 
+            }).catch(err => console.log(err)); 
+    };
+
     const fetchCourseProgress = () => { API.get(`/progress/calculate/${course.id}/${currentUser.email}`).then(res => setProgressPercent(res.data.percent)); };
     const checkSubscription = () => { API.post('/check-subscription', { course_id: course.id, student_name: currentUser.name }).then(res => setIsSubscribed(res.data.isSubscribed)); };
     
-    // ✅ تأمين جلب الفيديوهات
     const fetchVideos = () => { 
         API.get(`/videos/${course.id}`).then(res => { 
             const data = Array.isArray(res.data) ? res.data : [];
@@ -94,7 +101,7 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
             if (validVideos.length > 0 && !activeVideo) setActiveVideo(validVideos[0]); 
         }); 
     };
-    
+
     const fetchComments = () => { API.get(`/comments/${course.id}`).then(res => setComments(res.data)); };
     const fetchQuiz = () => { API.get(`/quiz/${course.id}`).then(res => setQuestions(res.data)); };
     const fetchMaterials = () => { API.get(`/materials/${course.id}`).then(res => setMaterials(res.data)); };
@@ -124,44 +131,25 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
 
     const handleSubmitQuiz = () => { if (attemptsCount >= 2) return alert("No attempts left."); let score = 0; questions.forEach(q => { if (userAnswers[q.id] === q.correct_answer) score++; }); setQuizScore(score); API.post('/quiz/attempt', { user_email: currentUser.email, course_id: course.id, score: score }).then(() => { setAttemptsCount(prev => prev + 1); alert(`Score: ${score}/${questions.length}`); }); };
     const handleRetakeQuiz = () => { if (attemptsCount >= 2) return; setUserAnswers({}); setQuizScore(null); };
-   // ✅ تعديل إضافة التعليق
-const handleAddComment = (e) => {
-    e.preventDefault();
-    if (!newComment.trim()) return;
-
-    API.post('/comments/add', {
-        course_id: course.id, // نبعته كـ id للمنشور
-        user_id: currentUser.id,
-        user_name: currentUser.name,
-        user_avatar: currentUser.profile_pic || '',
-        comment_text: newComment
-    }).then(() => {
-        setNewComment("");
-        fetchComments(); // تحديث القائمة فوراً
-    }).catch(err => alert("Comment failed: " + err.message));
-};
-
-// ✅ تعديل إضافة الماتريال
-const handleAddMaterial = (e) => {
-    e.preventDefault();
-    if (!newMaterial.file || !newMaterial.title) return alert("Please fill all fields");
-
-    const formData = new FormData();
-    formData.append('course_id', course.id);
-    formData.append('title', newMaterial.title);
-    formData.append('file', newMaterial.file);
-
-    API.post('/materials/add', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-    }).then(() => {
-        alert("Material Uploaded! 📄");
-        setNewMaterial({ title: '', file: null });
-        fetchMaterials();
-    }).catch(err => alert("Upload failed"));
-};
+    const handleAddComment = (e) => { e.preventDefault(); if(!newComment.trim()) return; API.post('/comments/add', { course_id: course.id, user_name: currentUser.name, comment_text: newComment }).then(() => { setNewComment(""); fetchComments(); }); };
     const handleAddQuestion = (e) => { e.preventDefault(); API.post('/quiz/add', { course_id: course.id, question_text: newQuestion.text, option_a: newQuestion.a, option_b: newQuestion.b, option_c: newQuestion.c, option_d: newQuestion.d, correct_answer: newQuestion.correct }).then(() => { alert("Added"); setNewQuestion({ text: '', a: '', b: '', c: '', d: '', correct: 'a' }); fetchQuiz(); }); };
     const handleDeleteQuestion = (id) => { if (window.confirm("Delete?")) API.delete(`/quiz/delete/${id}`).then(() => fetchQuiz()); };
-    const handleAddMaterial = (e) => { e.preventDefault(); if (!newMaterial.file) return alert("Select file"); const formData = new FormData(); formData.append('course_id', course.id); formData.append('title', newMaterial.title); formData.append('file', newMaterial.file); API.post('/materials/add', formData).then(() => { alert("Uploaded"); setNewMaterial({ title: '', file: null }); fetchMaterials(); }); };
+    
+    // ✅ الدالة الوحيدة لرفع الماتريال (تم حل التكرار)
+    const handleAddMaterial = (e) => { 
+        e.preventDefault(); 
+        if (!newMaterial.file || !newMaterial.title) return alert("Please fill all fields"); 
+        const formData = new FormData(); 
+        formData.append('course_id', course.id); 
+        formData.append('title', newMaterial.title); 
+        formData.append('file', newMaterial.file); 
+        API.post('/materials/add', formData).then(() => { 
+            alert("Material Uploaded! 📄"); 
+            setNewMaterial({ title: '', file: null }); 
+            fetchMaterials(); 
+        }).catch(err => alert("Upload failed")); 
+    };
+
     const handleDeleteMaterial = (id) => { if (window.confirm("Delete?")) API.delete(`/materials/delete/${id}`).then(() => fetchMaterials()); };
     const handleOptionSelect = (qId, opt) => { if (quizScore !== null || attemptsCount >= 2) return; setUserAnswers({ ...userAnswers, [qId]: opt }); };
     const handleSaveChanges = async () => { try { await API.put(`/activities/update/${course.id}`, { ...course, title: editData.title, description: editData.description, event_date: course.event_date.split('T')[0] }); setIsEditing(false); } catch (error) { alert("Error"); } };
@@ -228,7 +216,7 @@ const handleAddMaterial = (e) => {
                                         <div style={styles.playerContainer}>
                                             {activeVideo ? (
                                                 isDriveLink(activeVideo.video_link) ? (
-                                                    <iframe src={getDriveEmbedUrl(activeVideo.video_link)} width="100%" height="100%" style={{ border: 'none', borderRadius: '16px' }} allow="autoplay; encrypted-media; allowFullScreen" allowFullScreen title="Drive Video"></iframe>
+                                                    <iframe src={getDriveEmbedUrl(activeVideo.video_link)} width="100%" height="100%" style={{ border: 'none', borderRadius: '16px' }} allow="autoplay" allowFullScreen title="Drive Video"></iframe>
                                                 ) : isYouTubeLink(activeVideo.video_link) ? (
                                                     <ReactPlayer url={activeVideo.video_link} width="100%" height="100%" controls={true} onEnded={handleVideoEnd} style={{ borderRadius: '16px', overflow: 'hidden' }} />
                                                 ) : (
@@ -251,12 +239,6 @@ const handleAddMaterial = (e) => {
                                             </div>
                                         )}
                                         <div style={{ marginTop: '20px', color: '#ccc', lineHeight: '1.6' }}>{editData.description}</div>
-                                        {progressPercent === 100 && (
-                                            <div style={styles.certificateCard}>
-                                                <h2 style={{ margin: '0 0 10px 0' }}>🎉 Course Completed!</h2>
-                                                <button onClick={() => setShowCertificate(true)} style={styles.downloadCertBtn}>🎓 Download Certificate</button>
-                                            </div>
-                                        )}
                                     </div>
                                 )}
 
@@ -269,7 +251,7 @@ const handleAddMaterial = (e) => {
                                                 {canEdit && <div style={styles.adminCard}><h4>Add Question</h4><input value={newQuestion.text} onChange={e => setNewQuestion({ ...newQuestion, text: e.target.value })} style={styles.descInput} placeholder="Question" /><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}><input placeholder="A" value={newQuestion.a} onChange={e => setNewQuestion({ ...newQuestion, a: e.target.value })} style={styles.sidebarInput} /><input placeholder="B" value={newQuestion.b} onChange={e => setNewQuestion({ ...newQuestion, b: e.target.value })} style={styles.sidebarInput} /><input placeholder="C" value={newQuestion.c} onChange={e => setNewQuestion({ ...newQuestion, c: e.target.value })} style={styles.sidebarInput} /><input placeholder="D" value={newQuestion.d} onChange={e => setNewQuestion({ ...newQuestion, d: e.target.value })} style={styles.sidebarInput} /></div><div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}><label style={{ color: '#aaa' }}>Correct:</label><select value={newQuestion.correct} onChange={e => setNewQuestion({ ...newQuestion, correct: e.target.value })} style={styles.sidebarInput}><option value="a">A</option><option value="b">B</option><option value="c">C</option><option value="d">D</option></select><button onClick={handleAddQuestion} style={styles.actionBtn}>Add</button></div></div>}
                                                 <div style={{ marginBottom: '20px' }}>Attempts: {attemptsCount}/2 | Best: {bestScore}</div>
                                                 {questions.map((q, idx) => (<div key={q.id} style={styles.questionCard}><h4>Q{idx + 1}: {q.question_text}</h4>{['a', 'b', 'c', 'd'].map(o => <label key={o} style={{ display: 'block', padding: '10px' }}><input type="radio" name={`q-${q.id}`} onChange={() => handleOptionSelect(q.id, o)} disabled={attemptsCount >= 2 || quizScore !== null} /> {q[`option_${o}`]}</label>)}</div>))}
-                                                {attemptsCount < 2 && quizScore === null ? <button onClick={handleSubmitQuiz} style={styles.bigSubscribeBtn}>Submit</button> : <div>{attemptsCount >= 2 ? "No attempts left" : <button onClick={handleRetakeQuiz}>Retake</button>}</div>}
+                                                {attemptsCount < 2 && quizScore === null ? <button onClick={handleSubmitQuiz} style={styles.bigSubscribeBtn}>Submit</button> : <div>{attemptsCount >= 2 ? "No attempts left" : <button onClick={handleRetakeQuiz} style={styles.secondaryBtn}>Retake</button>}</div>}
                                             </>
                                         )}
                                     </div>
@@ -292,7 +274,6 @@ const handleAddMaterial = (e) => {
                                                 <div key={m.id} style={styles.materialCard}>
                                                     <div style={{ fontSize: '2rem' }}>📄</div>
                                                     <div style={{ fontWeight: 'bold', margin: '10px 0' }}>{m.title}</div>
-                                                    {/* ✅ حذف localhost لفتح الروابط السحابية */}
                                                     <a href={m.file_path} target="_blank" rel="noreferrer" style={styles.downloadBtn}>Download</a>
                                                     {canEdit && <button onClick={() => handleDeleteMaterial(m.id)} style={{ ...styles.deleteBtn, marginTop: '10px' }}>Delete</button>}
                                                 </div>
@@ -319,7 +300,7 @@ const handleAddMaterial = (e) => {
     );
 };
 
-// ✅ الـ Styles الأصلية بتاعتك بدون تغيير حرف واحد
+// --- Styles الأصلية ---
 const styles = {
     fullScreenOverlay: { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: '#0f172a', zIndex: 9999, display: 'flex', flexDirection: 'column', fontFamily: "'Cairo', 'Segoe UI', sans-serif" },
     headerStyle: { height: '60px', backgroundColor: 'rgba(15, 23, 42, 0.95)', padding: '0 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)' },
@@ -350,8 +331,6 @@ const styles = {
     materialCard: { backgroundColor: 'rgba(255,255,255,0.05)', padding: '20px', borderRadius: '10px', textAlign: 'center' },
     downloadBtn: { display: 'inline-block', color: '#4facfe', textDecoration: 'none', border: '1px solid #4facfe', padding: '5px 15px', borderRadius: '20px', fontSize: '0.9rem' },
     lockScreenStyle: { height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'white' },
-    certificateCard: { marginTop: '30px', padding: '20px', background: 'linear-gradient(135deg, #FFD700 0%, #FDB931 100%)', borderRadius: '15px', textAlign: 'center', color: '#000', boxShadow: '0 4px 15px rgba(253, 185, 49, 0.4)' },
-    downloadCertBtn: { padding: '12px 30px', background: 'black', color: '#FFD700', border: 'none', borderRadius: '50px', fontWeight: 'bold', cursor: 'pointer', fontSize: '1rem' },
     adminCard: { backgroundColor: 'rgba(30, 41, 59, 0.6)', padding: '20px', borderRadius: '15px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.05)' },
     sidebarInput: { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', outline: 'none' },
     descInput: { width: '100%', padding: '15px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', outline: 'none' },
