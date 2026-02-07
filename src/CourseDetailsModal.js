@@ -134,7 +134,13 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         }); 
     };
 
-    const fetchComments = () => { API.get(`/comments/${course.id}`).then(res => setComments(res.data)); };
+    // ✅ استبدل دالة fetchComments القديمة بدي:
+const fetchComments = () => { 
+    // لازم نكلم المسار المخصص للكورسات اللي عملناه في السيرفر
+    API.get(`/comments/course/${course.id}`)
+       .then(res => setComments(res.data))
+       .catch(err => console.error("Chat Error:", err)); 
+};
     const fetchQuiz = () => { API.get(`/quiz/${course.id}`).then(res => setQuestions(res.data)); };
     const fetchMaterials = () => { API.get(`/materials/${course.id}`).then(res => setMaterials(res.data)); };
 
@@ -201,14 +207,21 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         }
     };
 
-    // --- Comment Handlers ---
-    const handleAddComment = (e) => { 
-        e.preventDefault(); 
-        if(!newComment.trim()) return; 
-        API.post('/comments/add', { course_id: course.id, user_name: currentUser.name, comment_text: newComment })
-           .then(() => { setNewComment(""); fetchComments(); }); 
-    };
-
+// ✅ استبدل دالة handleAddComment القديمة بدي:
+const handleAddComment = (e) => { 
+    e.preventDefault(); 
+    if(!newComment.trim()) return; 
+    
+    API.post('/comments/add', { 
+        course_id: course.id, // نبعت معرف الكورس صراحة
+        user_name: currentUser.name, 
+        user_avatar: currentUser.profile_pic, // نبعت الصورة عشان تظهر في الشات
+        comment_text: newComment 
+    }).then(() => { 
+        setNewComment(""); 
+        fetchComments(); // تحديث فوري للشات
+    }); 
+};
     const handleDeleteComment = (id) => {
         if(window.confirm("Delete Comment?")) {
             API.delete(`/comments/delete/${id}`).then(() => fetchComments());
