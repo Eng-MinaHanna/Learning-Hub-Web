@@ -5,6 +5,9 @@ import CertificateModal from './CertificateModal';
 
 const CourseDetailsModal = ({ course, onClose, currentUser }) => {
 
+    // ==========================================
+    // 1. States & Variables
+    // ==========================================
     const [editData, setEditData] = useState({
         title: course?.title || '',
         description: course?.description || ''
@@ -36,7 +39,7 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
 
     const [realVideoEnded, setRealVideoEnded] = useState(false);
 
-    // ✅ حساس حجم الشاشة للموبايل
+    // ✅ حساس الموبايل (عشان التصميم يظبط)
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
     useEffect(() => {
@@ -50,7 +53,9 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
     const isUnlocked = isSubscribed || isAdmin || isOwner;
     const canEdit = isAdmin || isOwner;
 
-    // --- Helpers ---
+    // ==========================================
+    // 2. Helpers
+    // ==========================================
     const isDriveLink = (url) => url && url.includes("drive.google.com");
     const isYouTubeLink = (url) => url && (url.includes("youtube.com") || url.includes("youtu.be"));
 
@@ -71,6 +76,15 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         return link; 
     };
 
+    const formatDateTime = (ds) => { 
+        if (!ds) return 'Soon'; 
+        const d = new Date(ds); 
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); 
+    };
+
+    // ==========================================
+    // 3. Data Fetching
+    // ==========================================
     useEffect(() => {
         if (currentUser && course) {
             checkSubscription();
@@ -114,6 +128,10 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
     const fetchComments = () => { API.get(`/comments/${course.id}`).then(res => setComments(res.data)); };
     const fetchQuiz = () => { API.get(`/quiz/${course.id}`).then(res => setQuestions(res.data)); };
     const fetchMaterials = () => { API.get(`/materials/${course.id}`).then(res => setMaterials(res.data)); };
+
+    // ==========================================
+    // 4. Handlers (Actions)
+    // ==========================================
     const handleSubscribe = () => { API.post('/subscribe', { course_id: course.id, student_name: currentUser.name, student_email: currentUser.email }).then(() => { alert("تم الاشتراك! 🚀"); setIsSubscribed(true); }); };
 
     const handleVideoEnd = () => {
@@ -138,28 +156,62 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         });
     };
 
-    const handleSubmitQuiz = () => { if (attemptsCount >= 2) return alert("No attempts left."); let score = 0; questions.forEach(q => { if (userAnswers[q.id] === q.correct_answer) score++; }); setQuizScore(score); API.post('/quiz/attempt', { user_email: currentUser.email, course_id: course.id, score: score }).then(() => { setAttemptsCount(prev => prev + 1); alert(`Score: ${score}/${questions.length}`); }); };
+    // --- Quiz Handlers ---
+    const handleSubmitQuiz = () => { 
+        if (attemptsCount >= 2) return alert("No attempts left."); 
+        let score = 0; 
+        questions.forEach(q => { if (userAnswers[q.id] === q.correct_answer) score++; }); 
+        setQuizScore(score); 
+        API.post('/quiz/attempt', { user_email: currentUser.email, course_id: course.id, score: score })
+           .then(() => { 
+               setAttemptsCount(prev => prev + 1); 
+               alert(`Score: ${score}/${questions.length}`); 
+           }); 
+    };
+    
     const handleRetakeQuiz = () => { if (attemptsCount >= 2) return; setUserAnswers({}); setQuizScore(null); };
-    
-    // --- Comments Functions ---
-    const handleAddComment = (e) => { e.preventDefault(); if(!newComment.trim()) return; API.post('/comments/add', { course_id: course.id, user_name: currentUser.name, comment_text: newComment }).then(() => { setNewComment(""); fetchComments(); }); };
-    
-    // ✅ إضافة دالة مسح الكومنت
-    const handleDeleteComment = (id) => {
-        if(window.confirm("Delete this comment?")) {
-            API.delete(`/comments/delete/${id}`)
-               .then(() => fetchComments())
-               .catch(() => alert("Error deleting comment"));
+    const handleOptionSelect = (qId, opt) => { if (quizScore !== null || attemptsCount >= 2) return; setUserAnswers({ ...userAnswers, [qId]: opt }); };
+
+    const handleAddQuestion = (e) => { 
+        e.preventDefault(); 
+        API.post('/quiz/add', { 
+            course_id: course.id, 
+            question_text: newQuestion.text, 
+            option_a: newQuestion.a, 
+            option_b: newQuestion.b, 
+            option_c: newQuestion.c, 
+            option_d: newQuestion.d, 
+            correct_answer: newQuestion.correct 
+        }).then(() => { 
+            alert("Added"); 
+            setNewQuestion({ text: '', a: '', b: '', c: '', d: '', correct: 'a' }); 
+            fetchQuiz(); 
+        }); 
+    };
+
+    // ✅ مسح السؤال
+    const handleDeleteQuestion = (id) => { 
+        if (window.confirm("Delete Question?")) {
+            API.delete(`/quiz/delete/${id}`).then(() => fetchQuiz()); 
         }
     };
 
-    // --- Quiz Functions ---
-    const handleAddQuestion = (e) => { e.preventDefault(); API.post('/quiz/add', { course_id: course.id, question_text: newQuestion.text, option_a: newQuestion.a, option_b: newQuestion.b, option_c: newQuestion.c, option_d: newQuestion.d, correct_answer: newQuestion.correct }).then(() => { alert("Added"); setNewQuestion({ text: '', a: '', b: '', c: '', d: '', correct: 'a' }); fetchQuiz(); }); };
-    
-    // ✅ التأكد من تفعيل دالة مسح السؤال
-    const handleDeleteQuestion = (id) => { if (window.confirm("Delete Question?")) API.delete(`/quiz/delete/${id}`).then(() => fetchQuiz()); };
-    
-    // --- Materials Functions ---
+    // --- Comment Handlers ---
+    const handleAddComment = (e) => { 
+        e.preventDefault(); 
+        if(!newComment.trim()) return; 
+        API.post('/comments/add', { course_id: course.id, user_name: currentUser.name, comment_text: newComment })
+           .then(() => { setNewComment(""); fetchComments(); }); 
+    };
+
+    // ✅ مسح الكومنت
+    const handleDeleteComment = (id) => {
+        if(window.confirm("Delete Comment?")) {
+            API.delete(`/comments/delete/${id}`).then(() => fetchComments());
+        }
+    };
+
+    // --- Materials Handlers ---
     const handleAddMaterial = (e) => { 
         e.preventDefault(); 
         if (!newMaterial.file || !newMaterial.title) return alert("Please fill all fields"); 
@@ -167,7 +219,7 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         const formData = new FormData(); 
         formData.append('course_id', course.id); 
         formData.append('title', newMaterial.title); 
-        formData.append('file', newMaterial.file); // تأكدنا من إن الاسم 'file' مطابق للسيرفر
+        formData.append('file', newMaterial.file); 
         
         API.post('/materials/add', formData).then(() => { 
             alert("Material Uploaded! 📄"); 
@@ -176,11 +228,36 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         }).catch(err => alert("Upload failed")); 
     };
 
-    const handleDeleteMaterial = (id) => { if (window.confirm("Delete File?")) API.delete(`/materials/delete/${id}`).then(() => fetchMaterials()); };
-    const handleOptionSelect = (qId, opt) => { if (quizScore !== null || attemptsCount >= 2) return; setUserAnswers({ ...userAnswers, [qId]: opt }); };
-    const handleSaveChanges = async () => { try { await API.put(`/activities/update/${course.id}`, { ...course, title: editData.title, description: editData.description, event_date: course.event_date.split('T')[0] }); setIsEditing(false); } catch (error) { alert("Error"); } };
-    const startEditingVideo = (vid) => { setEditingVideoId(vid.id); let formattedDate = ''; if (vid.video_date) { const d = new Date(vid.video_date); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); formattedDate = d.toISOString().slice(0, 16); } setNewVideoLink({ title: vid.video_title, link: vid.video_link, date: formattedDate, file: null }); };
-    
+    const handleDeleteMaterial = (id) => { 
+        if (window.confirm("Delete File?")) {
+            API.delete(`/materials/delete/${id}`).then(() => fetchMaterials()); 
+        }
+    };
+
+    // --- Video/Course Editing ---
+    const handleSaveChanges = async () => { 
+        try { 
+            await API.put(`/activities/update/${course.id}`, { 
+                ...course, 
+                title: editData.title, 
+                description: editData.description, 
+                event_date: course.event_date.split('T')[0] 
+            }); 
+            setIsEditing(false); 
+        } catch (error) { alert("Error"); } 
+    };
+
+    const startEditingVideo = (vid) => { 
+        setEditingVideoId(vid.id); 
+        let formattedDate = ''; 
+        if (vid.video_date) { 
+            const d = new Date(vid.video_date); 
+            d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); 
+            formattedDate = d.toISOString().slice(0, 16); 
+        } 
+        setNewVideoLink({ title: vid.video_title, link: vid.video_link, date: formattedDate, file: null }); 
+    };
+
     const handleSaveVideo = async (e) => { 
         e.preventDefault(); 
         if (!newVideoLink.date) { alert("⚠️ Date needed"); return; } 
@@ -190,18 +267,13 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         formData.append('video_title', newVideoLink.title);
         formData.append('video_date', newVideoLink.date);
         
-        if (newVideoLink.file) {
-            formData.append('video_file', newVideoLink.file);
-        } else {
-            formData.append('video_link', newVideoLink.link);
-        }
+        if (newVideoLink.file) formData.append('video_file', newVideoLink.file);
+        else formData.append('video_link', newVideoLink.link);
 
         try {
-            if (editingVideoId) { 
-                await API.put(`/videos/update/${editingVideoId}`, formData); 
-            } else { 
-                await API.post('/videos/add', formData); 
-            } 
+            if (editingVideoId) await API.put(`/videos/update/${editingVideoId}`, formData); 
+            else await API.post('/videos/add', formData); 
+            
             setNewVideoLink({ title: '', link: '', date: '', file: null }); 
             setEditingVideoId(null); 
             fetchVideos(); 
@@ -209,26 +281,42 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         } catch(err) { alert("Error saving video"); }
     };
 
-    const handleDeleteVideo = async (videoId) => { if (window.confirm("Delete Video?")) { await API.delete(`/videos/delete/${videoId}`); fetchVideos(); } };
-    const formatDateTime = (ds) => { if (!ds) return 'Soon'; const d = new Date(ds); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); };
+    const handleDeleteVideo = async (videoId) => { 
+        if (window.confirm("Delete Video?")) { 
+            await API.delete(`/videos/delete/${videoId}`); 
+            fetchVideos(); 
+        } 
+    };
 
     const visibleVideos = Array.isArray(videos) ? videos.filter(vid => canEdit || !vid.video_date || new Date(vid.video_date) <= new Date()) : [];
 
+    // ==========================================
+    // 5. Render
+    // ==========================================
     return (
         <div style={styles.fullScreenOverlay}>
             <div style={styles.headerStyle}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                     <button onClick={onClose} style={styles.backBtnStyle}>🔙 Exit</button>
-                    {isEditing ? <input value={editData.title} onChange={e => setEditData({ ...editData, title: e.target.value })} style={styles.headerInput} /> : <h2 style={{ margin: 0, color: 'white', fontSize: isMobile ? '1rem' : '1.2rem' }}>{editData.title}</h2>}
+                    {isEditing ? 
+                        <input value={editData.title} onChange={e => setEditData({ ...editData, title: e.target.value })} style={styles.headerInput} /> 
+                        : 
+                        <h2 style={{ margin: 0, color: 'white', fontSize: isMobile ? '1rem' : '1.2rem' }}>{editData.title}</h2>
+                    }
                 </div>
                 {canEdit && <button onClick={() => isEditing ? handleSaveChanges() : setIsEditing(true)} style={styles.editBtn}>{isEditing ? '💾 Save' : '⚙️ Edit'}</button>}
             </div>
 
+            {/* ✅ Layout: يقلب عمودي في الموبايل */}
             <div style={{ ...styles.mainLayout, flexDirection: isMobile ? 'column' : 'row' }}>
                 
+                {/* Content Area (Video & Tabs) */}
                 <div style={{ ...styles.contentAreaStyle, order: isMobile ? -1 : 0 }}>
                     {!isUnlocked ? (
-                        <div style={styles.lockScreenStyle}><h1>🔒 Locked</h1><button onClick={handleSubscribe} style={styles.bigSubscribeBtn}>Subscribe Now</button></div>
+                        <div style={styles.lockScreenStyle}>
+                            <h1>🔒 Locked</h1>
+                            <button onClick={handleSubscribe} style={styles.bigSubscribeBtn}>Subscribe Now</button>
+                        </div>
                     ) : (
                         <>
                             <div style={{ ...styles.tabsWrapper, padding: isMobile ? '0 10px' : '0 20px' }}>
@@ -241,6 +329,8 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                             </div>
 
                             <div style={{ ...styles.tabContent, padding: isMobile ? '15px' : '30px' }}>
+                                
+                                {/* --- Tab: Lesson --- */}
                                 {activeTab === 'lesson' && (
                                     <div style={styles.fadeIn}>
                                         <div style={styles.playerContainer}>
@@ -252,7 +342,7 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                                                 ) : (
                                                     <video src={getLocalVideoUrl(activeVideo.video_link)} controls onEnded={handleVideoEnd} style={{ width: '100%', height: '100%', borderRadius: '16px', backgroundColor: 'black' }} controlsList="nodownload">Your browser does not support the video tag.</video>
                                                 )
-                                            ) : <div style={{ color: '#aaa', textAlign: 'center', marginTop: '50px' }}>Select a video</div>}
+                                            ) : <div style={{ color: '#aaa', textAlign: 'center', marginTop: '50px' }}>Select a video from the playlist</div>}
                                         </div>
 
                                         {activeVideo && (
@@ -272,36 +362,69 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                                     </div>
                                 )}
 
+                                {/* --- Tab: Quiz --- */}
                                 {activeTab === 'quiz' && (
                                     <div style={styles.fadeIn}>
                                         {!isVideoWatched && !canEdit ? (
-                                            <div style={styles.lockedQuizState}><h3>🔒 Locked</h3><p>Watch video first.</p><button onClick={() => setActiveTab('lesson')} style={styles.secondaryBtn}>Go to Video</button></div>
+                                            <div style={styles.lockedQuizState}>
+                                                <h3>🔒 Locked</h3>
+                                                <p>Watch the video first to unlock the quiz.</p>
+                                                <button onClick={() => setActiveTab('lesson')} style={styles.secondaryBtn}>Go to Video</button>
+                                            </div>
                                         ) : (
                                             <>
-                                                {canEdit && <div style={styles.adminCard}><h4>Add Question</h4><input value={newQuestion.text} onChange={e => setNewQuestion({ ...newQuestion, text: e.target.value })} style={styles.descInput} placeholder="Question" /><div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px', marginBottom: '10px' }}><input placeholder="A" value={newQuestion.a} onChange={e => setNewQuestion({ ...newQuestion, a: e.target.value })} style={styles.sidebarInput} /><input placeholder="B" value={newQuestion.b} onChange={e => setNewQuestion({ ...newQuestion, b: e.target.value })} style={styles.sidebarInput} /><input placeholder="C" value={newQuestion.c} onChange={e => setNewQuestion({ ...newQuestion, c: e.target.value })} style={styles.sidebarInput} /><input placeholder="D" value={newQuestion.d} onChange={e => setNewQuestion({ ...newQuestion, d: e.target.value })} style={styles.sidebarInput} /></div><div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}><label style={{ color: '#aaa' }}>Correct:</label><select value={newQuestion.correct} onChange={e => setNewQuestion({ ...newQuestion, correct: e.target.value })} style={styles.sidebarInput}><option value="a">A</option><option value="b">B</option><option value="c">C</option><option value="d">D</option></select><button onClick={handleAddQuestion} style={styles.actionBtn}>Add</button></div></div>}
-                                                <div style={{ marginBottom: '20px', color:'#ffd700' }}>Attempts: {attemptsCount || 0}/2 | Best: {bestScore || 0}</div>
+                                                {canEdit && (
+                                                    <div style={styles.adminCard}>
+                                                        <h4>Add Question</h4>
+                                                        <input value={newQuestion.text} onChange={e => setNewQuestion({ ...newQuestion, text: e.target.value })} style={styles.descInput} placeholder="Question" />
+                                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                                                            <input placeholder="A" value={newQuestion.a} onChange={e => setNewQuestion({ ...newQuestion, a: e.target.value })} style={styles.sidebarInput} />
+                                                            <input placeholder="B" value={newQuestion.b} onChange={e => setNewQuestion({ ...newQuestion, b: e.target.value })} style={styles.sidebarInput} />
+                                                            <input placeholder="C" value={newQuestion.c} onChange={e => setNewQuestion({ ...newQuestion, c: e.target.value })} style={styles.sidebarInput} />
+                                                            <input placeholder="D" value={newQuestion.d} onChange={e => setNewQuestion({ ...newQuestion, d: e.target.value })} style={styles.sidebarInput} />
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                                            <label style={{ color: '#aaa' }}>Correct:</label>
+                                                            <select value={newQuestion.correct} onChange={e => setNewQuestion({ ...newQuestion, correct: e.target.value })} style={styles.sidebarInput}>
+                                                                <option value="a">A</option><option value="b">B</option><option value="c">C</option><option value="d">D</option>
+                                                            </select>
+                                                            <button onClick={handleAddQuestion} style={styles.actionBtn}>Add</button>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div style={{ marginBottom: '20px', color:'#ffd700' }}>Attempts: {attemptsCount || 0}/2 | Best Score: {bestScore || 0}</div>
                                                 
-                                                {/* ✅ إضافة زرار حذف السؤال للأدمن */}
+                                                {/* ✅ حماية الكويز من الشاشة البيضاء + زر الحذف */}
                                                 {Array.isArray(questions) && questions.length > 0 ? questions.map((q, idx) => (
                                                     <div key={q.id || idx} style={styles.questionCard}>
-                                                        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                                                            <h4>Q{idx + 1}: {q.question_text}</h4>
+                                                        <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
+                                                            <h4 style={{marginTop:0}}>Q{idx + 1}: {q.question_text}</h4>
                                                             {canEdit && <button onClick={() => handleDeleteQuestion(q.id)} style={{...styles.deleteBtn, padding:'5px 10px'}}>🗑️</button>}
                                                         </div>
                                                         {['a', 'b', 'c', 'd'].map(o => (
                                                             <label key={o} style={{ display: 'block', padding: '10px', cursor:'pointer' }}>
-                                                                <input type="radio" name={`q-${q.id}`} onChange={() => handleOptionSelect(q.id, o)} disabled={(attemptsCount || 0) >= 2 || quizScore !== null} /> {q[`option_${o}`]}
+                                                                <input type="radio" name={`q-${q.id}`} onChange={() => handleOptionSelect(q.id, o)} disabled={(attemptsCount || 0) >= 2 || quizScore !== null} /> 
+                                                                <span style={{marginLeft:'10px'}}>{q[`option_${o}`]}</span>
                                                             </label>
                                                         ))}
                                                     </div>
-                                                )) : <p style={{color:'#666', textAlign:'center'}}>No questions yet.</p>}
-                                                {(attemptsCount || 0) < 2 && quizScore === null && questions.length > 0 && <button onClick={handleSubmitQuiz} style={{...styles.bigSubscribeBtn, width:'100%'}}>Submit Quiz</button>}
-                                                {((attemptsCount || 0) >= 2 || quizScore !== null) && <div style={{textAlign:'center'}}>{(attemptsCount || 0) < 2 ? <button onClick={handleRetakeQuiz} style={styles.secondaryBtn}>Retake</button> : <span style={{color:'#ff6b6b'}}>No attempts left</span>}</div>}
+                                                )) : <p style={{color:'#666', textAlign:'center'}}>No questions available yet.</p>}
+
+                                                {(attemptsCount || 0) < 2 && quizScore === null && questions.length > 0 && 
+                                                    <button onClick={handleSubmitQuiz} style={{...styles.bigSubscribeBtn, width:'100%'}}>Submit Quiz</button>
+                                                }
+                                                {((attemptsCount || 0) >= 2 || quizScore !== null) && 
+                                                    <div style={{textAlign:'center', marginTop:'20px'}}>
+                                                        {(attemptsCount || 0) < 2 ? <button onClick={handleRetakeQuiz} style={styles.secondaryBtn}>Retake Quiz</button> : <span style={{color:'#ff6b6b'}}>No attempts left</span>}
+                                                    </div>
+                                                }
                                             </>
                                         )}
                                     </div>
                                 )}
 
+                                {/* --- Tab: Materials --- */}
                                 {activeTab === 'materials' && (
                                     <div style={styles.fadeIn}>
                                         {canEdit && (
@@ -327,18 +450,22 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                                     </div>
                                 )}
 
+                                {/* --- Tab: Comments --- */}
                                 {activeTab === 'comments' && (
                                     <div style={styles.fadeIn}>
                                         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-                                            <input value={newComment} onChange={e => setNewComment(e.target.value)} style={styles.commentInput} placeholder="Comment..." /><button onClick={handleAddComment} style={styles.sendCommentBtn}>Post</button>
+                                            <input value={newComment} onChange={e => setNewComment(e.target.value)} style={styles.commentInput} placeholder="Write a comment..." />
+                                            <button onClick={handleAddComment} style={styles.sendCommentBtn}>Post</button>
                                         </div>
-                                        {/* ✅ إضافة زرار حذف الكومنت */}
                                         {comments.map(c => (
                                             <div key={c.id} style={styles.commentItem}>
                                                 <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
-                                                    <div><b>{c.user_name}</b>: {c.comment_text}</div>
+                                                    <div>
+                                                        <b style={{color:'#4facfe'}}>{c.user_name}</b>: <span style={{marginLeft:'5px'}}>{c.comment_text}</span>
+                                                    </div>
+                                                    {/* ✅ زر حذف الكومنت */}
                                                     {(canEdit || c.user_id === currentUser.id) && (
-                                                        <button onClick={() => handleDeleteComment(c.id)} style={{background:'none', border:'none', cursor:'pointer', color:'#ff6b6b'}}>✕</button>
+                                                        <button onClick={() => handleDeleteComment(c.id)} style={{background:'none', border:'none', cursor:'pointer', color:'#ff6b6b', fontSize:'1.1rem'}}>×</button>
                                                     )}
                                                 </div>
                                             </div>
@@ -350,6 +477,7 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                     )}
                 </div>
 
+                {/* Sidebar (Playlist) */}
                 <div style={{ ...styles.sidebarStyle, width: isMobile ? '100%' : '300px', height: isMobile ? '350px' : 'auto', borderRight: isMobile ? 'none' : styles.sidebarStyle.borderRight, borderTop: isMobile ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
                     <div style={styles.sidebarHeader}><h3 style={{ margin: 0, color: '#ecf0f1', fontSize: '1rem' }}>▶️ Playlist</h3></div>
                     <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -357,10 +485,18 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                             <div key={vid.id} onClick={() => { if (!isEditing) { setActiveVideo(vid); setActiveTab('lesson'); } }}
                                 style={{ ...styles.videoItemStyle, backgroundColor: activeVideo?.id === vid.id ? 'rgba(79, 172, 254, 0.15)' : 'transparent', borderLeft: activeVideo?.id === vid.id ? '4px solid #4facfe' : '4px solid transparent', opacity: activeVideo?.id === vid.id ? 1 : 0.7 }}>
                                 <div style={{ width: '100%' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ color: activeVideo?.id === vid.id ? '#4facfe' : '#666', fontWeight: 'bold' }}>{index + 1}</span><span style={{ color: 'white' }}>{vid.video_title}</span></div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <span style={{ color: activeVideo?.id === vid.id ? '#4facfe' : '#666', fontWeight: 'bold' }}>{index + 1}</span>
+                                        <span style={{ color: 'white' }}>{vid.video_title}</span>
+                                    </div>
                                     <small style={{ color: '#888', marginLeft: '20px', display: 'block' }}>{formatDateTime(vid.video_date)}</small>
                                 </div>
-                                {isEditing && (<div style={{ display: 'flex', gap: '5px' }}><button onClick={(e) => { e.stopPropagation(); startEditingVideo(vid); }} style={{ ...styles.iconBtn, color: '#fde047' }}>✏️</button><button onClick={(e) => { e.stopPropagation(); handleDeleteVideo(vid.id); }} style={{ ...styles.iconBtn, color: '#ff6b6b' }}>🗑️</button></div>)}
+                                {isEditing && (
+                                    <div style={{ display: 'flex', gap: '5px' }}>
+                                        <button onClick={(e) => { e.stopPropagation(); startEditingVideo(vid); }} style={{ ...styles.iconBtn, color: '#fde047' }}>✏️</button>
+                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteVideo(vid.id); }} style={{ ...styles.iconBtn, color: '#ff6b6b' }}>🗑️</button>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -387,7 +523,7 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
     );
 };
 
-// --- Styles الأصلية ---
+// --- Styles ---
 const styles = {
     fullScreenOverlay: { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: '#0f172a', zIndex: 9999, display: 'flex', flexDirection: 'column', fontFamily: "'Cairo', 'Segoe UI', sans-serif" },
     headerStyle: { height: '60px', backgroundColor: 'rgba(15, 23, 42, 0.95)', padding: '0 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)' },
