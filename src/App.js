@@ -26,12 +26,18 @@ function App() {
   const [editingActivity, setEditingActivity] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [currentView, setCurrentView] = useState(localStorage.getItem('activeView') || 'home');
+  
+  // ✅ الحفاظ على المكان عند الريفريش
+  const [currentView, setCurrentView] = useState(() => {
+      return localStorage.getItem('activeView') || 'home';
+  });
+
   const [progressData, setProgressData] = useState({});
   const [unreadCount, setUnreadCount] = useState(0);
   const [showAuth, setShowAuth] = useState(false);
   
-  // ✅ حساسات الموبايل والسايد بار المطور
+  const [loading, setLoading] = useState(false);
+
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
 
@@ -45,37 +51,98 @@ function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // ✅ حفظ التابة الحالية
   useEffect(() => {
     localStorage.setItem('activeView', currentView);
-    if (isMobile) setIsSidebarOpen(false); // قفل السايد بار تلقائياً عند تغيير التابة في الموبايل
+    if (isMobile) setIsSidebarOpen(false);
   }, [currentView, isMobile]);
 
   const fetchData = async () => {
+    if (activities.length === 0) setLoading(true); 
+    
     try {
       const actsRes = await API.get('/activities/all');
       const data = Array.isArray(actsRes.data) ? actsRes.data : [];
       setActivities(data);
+
+      // ✅ (جديد) استعادة الكورس المفتوح لو عملنا ريفريش
+      const savedCourseId = localStorage.getItem('activeCourseId');
+      if (savedCourseId) {
+          const courseToRestore = data.find(c => c.id == savedCourseId);
+          if (courseToRestore) {
+              setSelectedCourse(courseToRestore);
+          }
+      }
+
       if (user?.email) {
-        data.forEach(course => {
-          API.get(`/progress/calculate/${course.id}/${user.email}`)
-            .then(res => setProgressData(prev => ({ ...prev, [course.id]: res.data?.percent || 0 })));
-        });
+        const promises = data.map(course => 
+           API.get(`/progress/calculate/${course.id}/${user.email}`)
+             .then(res => ({id: course.id, val: res.data?.percent || 0}))
+             .catch(()=>null)
+        );
+        
+        const results = await Promise.all(promises);
+        const newProgress = {};
+        results.forEach(r => { if(r) newProgress[r.id] = r.val });
+        setProgressData(newProgress);
+
         if (user.role === 'admin') {
           API.get('/stats').then(res => setStats(res.data || stats));
         }
+        checkNotifications();
       }
     } catch (err) { console.error(err); }
+    finally {
+        setLoading(false);
+    }
   };
 
-  useEffect(() => { fetchData(); }, [user?.id]);
+  const checkNotifications = () => {
+    if (!user?.id) return;
+    API.get(`/notifications/${user.id}`)
+      .then(res => setUnreadCount(Array.isArray(res.data) ? res.data.filter(n => !n.is_read).length : 0))
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    if (user) fetchData();
+  }, [user?.id]);
 
   const handleLogout = () => {
-    setUser(null); localStorage.clear(); setCurrentView('home');
+    setUser(null); 
+    localStorage.clear(); // هينظف كل حاجة بما فيها الكورس المحفوظ
+    setCurrentView('home');
+  };
+
+  const handleUserUpdate = (updatedData) => {
+    const newUser = { ...user, ...updatedData };
+    setUser(newUser);
+    localStorage.setItem('ieee_user', JSON.stringify(newUser));
   };
 
   const filteredActivities = (activities || []).filter(act =>
     act?.title?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleOpenCourse = (course) => { 
+    setSelectedCourse(course); 
+    localStorage.setItem('activeCourseId', course?.id); // ✅ حفظ الـ ID
+  };
+
+  const handleCloseCourse = () => {
+    setSelectedCourse(null);
+    localStorage.removeItem('activeCourseId'); // ✅ مسح الـ ID عند الخروج
+    fetchData();
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm("⚠️ Confirm Delete?")) {
+      try {
+        await API.delete(`/activities/delete/${id}`);
+        fetchData();
+      } catch (err) { alert("Error deleting"); }
+    }
+  };
 
   if (!user) {
     return (
@@ -86,26 +153,43 @@ function App() {
     );
   }
 
+  if (loading && activities.length === 0) {
+      return (
+          <div style={styles.loadingContainer}>
+              <div style={styles.spinner}></div>
+              <h3 style={{color: '#4facfe', marginTop: '20px', letterSpacing: '2px', fontFamily: 'monospace'}}>INITIALIZING SYSTEM...</h3>
+          </div>
+      );
+  }
+
   return (
     <div style={styles.appContainer}>
       <div style={styles.backgroundGrid}></div>
       
-      {/* ✅ زرار السايد بار (ثابت ومحمي) */}
-      <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={{...styles.toggleBtn, left: isSidebarOpen && !isMobile ? '290px' : '20px'}}>
+      {/* ✅ تعديل مكان الزرار عشان ميغطيش الكلام */}
+      <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={{
+          ...styles.toggleBtn, 
+          left: isSidebarOpen && !isMobile ? '290px' : '20px',
+          top: '20px' // ثبتناه فوق شوية
+      }}>
         {isSidebarOpen ? '◀' : '☰'}
       </button>
 
       <div style={{ display: 'flex', minHeight: '100vh', position: 'relative' }}>
         
-        {/* ✅ سايد بار بتصميم زجاجي (Glass Sidebar) */}
         <aside style={{ 
           ...styles.sidebar, 
           width: isSidebarOpen ? '280px' : '0px', 
           transform: (isMobile && !isSidebarOpen) ? 'translateX(-100%)' : 'translateX(0)',
           visibility: (!isSidebarOpen && !isMobile) ? 'hidden' : 'visible'
         }}>
-          <div style={{ padding: '40px 25px 20px', textAlign: 'center' }}>
-            <h2 style={styles.brandText}>IEEE <span style={{ color: '#4facfe' }}>HUB</span></h2>
+          {/* ✅ تعديل اسم السايد بار */}
+          <div style={{ padding: '40px 20px 20px', textAlign: 'center' }}>
+            <h2 style={{...styles.brandText, fontSize: '1.2rem', lineHeight: '1.5'}}>
+                IEEE <span style={{ color: '#4facfe' }}>ET5 SB</span>
+                <br />
+                <span style={{fontSize: '0.9rem', color: '#ccc', fontWeight: 'normal', letterSpacing: '1px'}}>Learning Hub</span>
+            </h2>
             <div style={styles.divider}></div>
           </div>
 
@@ -132,13 +216,13 @@ function App() {
           </nav>
         </aside>
 
-        {/* ✅ محتوى الصفحة محمي من التمطيط */}
         <main style={{ 
           ...styles.mainArea, 
           marginLeft: (isSidebarOpen && !isMobile) ? '280px' : '0px',
           width: (isSidebarOpen && !isMobile) ? 'calc(100% - 280px)' : '100%'
         }}>
-          <div style={styles.pageHeader}>
+          {/* ✅ إضافة مسافة للكلام عشان الزرار ميغطيهوش */}
+          <div style={{ ...styles.pageHeader, marginTop: '10px', paddingLeft: isMobile ? '50px' : '0' }}>
              {currentView === 'dashboard' && !selectedCourse && (
                 <h1 style={styles.welcomeText}>Hello, {user?.name?.split(' ')[0]}! ⚡</h1>
              )}
@@ -170,7 +254,10 @@ function App() {
                          <div style={styles.progressText}>Progress: {progressData[act.id] || 0}%</div>
                          <div style={styles.barBg}><div style={{...styles.barFill, width: `${progressData[act.id] || 0}%`}}></div></div>
                       </div>
-                      <button onClick={() => setSelectedCourse(act)} style={styles.continueBtn}>Continue Learning ▶️</button>
+                      <div style={{display:'flex', gap:'10px', marginTop:'15px'}}>
+                        <button onClick={() => handleOpenCourse(act)} style={styles.continueBtn}>Continue ▶️</button>
+                        {user.role === 'admin' && <button onClick={() => handleDelete(act.id)} style={styles.deleteBtnSmall}>🗑️</button>}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -178,18 +265,17 @@ function App() {
             </div>
           )}
 
-          {/* Views المتبقية كما هي */}
           {currentView === 'home' && <LandingPage user={user} onGetStarted={() => setCurrentView('dashboard')} />}
           {currentView === 'schedule' && <CalendarView onOpenCourse={(c)=>setSelectedCourse(activities.find(a=>a.id===c))} />}
           {currentView === 'leaderboard' && <LeaderboardView />}
           {currentView === 'users' && <AdminUsersView currentUser={user} />}
           {currentView === 'community' && <CommunityView />}
-          {currentView === 'settings' && <SettingsView user={user} onUpdateUser={(u)=>setUser({...user,...u})} />}
+          {currentView === 'settings' && <SettingsView user={user} onUpdateUser={handleUserUpdate} />}
         </main>
       </div>
 
       {showAddModal && <AddCourseModal onClose={() => setShowAddModal(false)} onAdd={fetchData} currentUser={user} />}
-      {selectedCourse && <CourseDetailsModal course={selectedCourse} onClose={() => setSelectedCourse(null)} currentUser={user} />}
+      {selectedCourse && <CourseDetailsModal course={selectedCourse} onClose={handleCloseCourse} currentUser={user} />}
       {editingActivity && <EditActivityModal activity={editingActivity} onClose={() => setEditingActivity(null)} onUpdate={fetchData} />}
       
       {user.role !== 'student' && currentView === 'dashboard' && (
@@ -199,7 +285,6 @@ function App() {
   );
 }
 
-// مكون زر التنقل
 const NavBtn = ({ icon, label, active, onClick }) => (
   <button onClick={onClick} style={active ? styles.navActive : styles.navInactive}>
     <span style={{fontSize: '1.2rem'}}>{icon}</span>
@@ -208,8 +293,8 @@ const NavBtn = ({ icon, label, active, onClick }) => (
 );
 
 const DashboardCard = ({ title, value, icon, color }) => (
-  <div style={{ ...styles.statCard, borderBottom: `3px solid ${color}` }}>
-    <div style={{ fontSize: '2.2rem' }}>{icon}</div>
+  <div style={{ ...styles.statCard, borderLeft: `5px solid ${color}` }}>
+    <div style={{ ...styles.iconCircle, backgroundColor: `${color}22`, color: color }}>{icon}</div>
     <div>
       <div style={styles.statLabel}>{title}</div>
       <div style={styles.statValue}>{value}</div>
@@ -217,11 +302,13 @@ const DashboardCard = ({ title, value, icon, color }) => (
   </div>
 );
 
-// ✅ الـ CSS المطور (Tech & Glassmorphism)
 const styles = {
   appContainer: { fontFamily: "'Cairo', sans-serif", backgroundColor: '#050810', color: 'white', minHeight: '100vh', position: 'relative', overflowX: 'hidden' },
   backgroundGrid: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundImage: 'radial-gradient(rgba(79, 172, 254, 0.03) 2px, transparent 2px)', backgroundSize: '50px 50px', zIndex: 0 },
   
+  loadingContainer: { position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: '#050810', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
+  spinner: { width: '50px', height: '50px', border: '5px solid rgba(79, 172, 254, 0.2)', borderTop: '5px solid #4facfe', borderRadius: '50%', animation: 'spin 1s linear infinite' },
+
   sidebar: { position: 'fixed', top: 0, left: 0, height: '100vh', backgroundColor: 'rgba(10, 15, 28, 0.95)', backdropFilter: 'blur(15px)', borderRight: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)', zIndex: 1000, overflow:'hidden' },
   brandText: { margin: 0, fontSize: '1.5rem', fontWeight: '900', color: 'white', letterSpacing: '2px' },
   divider: { height: '1px', background: 'linear-gradient(90deg, transparent, rgba(79,172,254,0.3), transparent)', margin: '15px 0' },
@@ -264,10 +351,11 @@ const styles = {
   barFill: { height: '100%', background: 'linear-gradient(90deg, #4facfe, #00f2fe)', borderRadius: '10px', transition: '1s ease' },
   
   continueBtn: { width: '100%', padding: '14px', borderRadius: '14px', border: 'none', background: 'linear-gradient(90deg, #4facfe, #00f2fe)', color: '#050810', fontWeight: '900', cursor: 'pointer', transition: '0.3s' },
+  deleteBtnSmall: { width: '45px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '12px', cursor: 'pointer' },
   
   toggleBtn: { position: 'fixed', top: '25px', zIndex: 3000, background: '#4facfe', color: '#050810', border: 'none', borderRadius: '10px', width: '40px', height: '40px', cursor: 'pointer', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 15px rgba(79,172,254,0.4)', transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)' },
   
-  fab: { position: 'fixed', bottom: '30px', right: '30px', width: '65px', height: '65px', borderRadius: '22px', background: 'linear-gradient(135deg, #4facfe, #00f2fe)', color: '#050810', fontSize: '35px', border: 'none', cursor: 'pointer', boxShadow: '0 15px 30px rgba(79,172,254,0.5)', zIndex: 100, fontWeight: 'bold' }
+  fab: { position: 'fixed', bottom: '30px', right: '30px', width: '65px', height: '65px', borderRadius: '22px', background: 'linear-gradient(135deg, #4facfe, #00f2fe)', color: '#050810', fontSize: '35px', border: 'none', cursor: 'pointer', boxShadow: '0 15px 30px rgba(79,172,254,0.5)', zIndex:100, fontWeight: 'bold' }
 };
 
 export default App;
