@@ -31,13 +31,12 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
     const [isEditing, setIsEditing] = useState(false);
 
     const [editingVideoId, setEditingVideoId] = useState(null);
-    // ✅ تحسين: إضافة دعم لملفات الفيديو
     const [newVideoLink, setNewVideoLink] = useState({ title: '', link: '', date: '', file: null });
     const [newComment, setNewComment] = useState("");
 
     const [realVideoEnded, setRealVideoEnded] = useState(false);
 
-    // ✅ 1. حساس حجم الشاشة للموبايل
+    // ✅ حساس حجم الشاشة للموبايل
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
     useEffect(() => {
@@ -141,17 +140,35 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
 
     const handleSubmitQuiz = () => { if (attemptsCount >= 2) return alert("No attempts left."); let score = 0; questions.forEach(q => { if (userAnswers[q.id] === q.correct_answer) score++; }); setQuizScore(score); API.post('/quiz/attempt', { user_email: currentUser.email, course_id: course.id, score: score }).then(() => { setAttemptsCount(prev => prev + 1); alert(`Score: ${score}/${questions.length}`); }); };
     const handleRetakeQuiz = () => { if (attemptsCount >= 2) return; setUserAnswers({}); setQuizScore(null); };
-    const handleAddComment = (e) => { e.preventDefault(); if(!newComment.trim()) return; API.post('/comments/add', { course_id: course.id, user_name: currentUser.name, comment_text: newComment }).then(() => { setNewComment(""); fetchComments(); }); };
-    const handleAddQuestion = (e) => { e.preventDefault(); API.post('/quiz/add', { course_id: course.id, question_text: newQuestion.text, option_a: newQuestion.a, option_b: newQuestion.b, option_c: newQuestion.c, option_d: newQuestion.d, correct_answer: newQuestion.correct }).then(() => { alert("Added"); setNewQuestion({ text: '', a: '', b: '', c: '', d: '', correct: 'a' }); fetchQuiz(); }); };
-    const handleDeleteQuestion = (id) => { if (window.confirm("Delete?")) API.delete(`/quiz/delete/${id}`).then(() => fetchQuiz()); };
     
+    // --- Comments Functions ---
+    const handleAddComment = (e) => { e.preventDefault(); if(!newComment.trim()) return; API.post('/comments/add', { course_id: course.id, user_name: currentUser.name, comment_text: newComment }).then(() => { setNewComment(""); fetchComments(); }); };
+    
+    // ✅ إضافة دالة مسح الكومنت
+    const handleDeleteComment = (id) => {
+        if(window.confirm("Delete this comment?")) {
+            API.delete(`/comments/delete/${id}`)
+               .then(() => fetchComments())
+               .catch(() => alert("Error deleting comment"));
+        }
+    };
+
+    // --- Quiz Functions ---
+    const handleAddQuestion = (e) => { e.preventDefault(); API.post('/quiz/add', { course_id: course.id, question_text: newQuestion.text, option_a: newQuestion.a, option_b: newQuestion.b, option_c: newQuestion.c, option_d: newQuestion.d, correct_answer: newQuestion.correct }).then(() => { alert("Added"); setNewQuestion({ text: '', a: '', b: '', c: '', d: '', correct: 'a' }); fetchQuiz(); }); };
+    
+    // ✅ التأكد من تفعيل دالة مسح السؤال
+    const handleDeleteQuestion = (id) => { if (window.confirm("Delete Question?")) API.delete(`/quiz/delete/${id}`).then(() => fetchQuiz()); };
+    
+    // --- Materials Functions ---
     const handleAddMaterial = (e) => { 
         e.preventDefault(); 
         if (!newMaterial.file || !newMaterial.title) return alert("Please fill all fields"); 
+        
         const formData = new FormData(); 
         formData.append('course_id', course.id); 
         formData.append('title', newMaterial.title); 
-        formData.append('file', newMaterial.file); 
+        formData.append('file', newMaterial.file); // تأكدنا من إن الاسم 'file' مطابق للسيرفر
+        
         API.post('/materials/add', formData).then(() => { 
             alert("Material Uploaded! 📄"); 
             setNewMaterial({ title: '', file: null }); 
@@ -159,12 +176,11 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         }).catch(err => alert("Upload failed")); 
     };
 
-    const handleDeleteMaterial = (id) => { if (window.confirm("Delete?")) API.delete(`/materials/delete/${id}`).then(() => fetchMaterials()); };
+    const handleDeleteMaterial = (id) => { if (window.confirm("Delete File?")) API.delete(`/materials/delete/${id}`).then(() => fetchMaterials()); };
     const handleOptionSelect = (qId, opt) => { if (quizScore !== null || attemptsCount >= 2) return; setUserAnswers({ ...userAnswers, [qId]: opt }); };
     const handleSaveChanges = async () => { try { await API.put(`/activities/update/${course.id}`, { ...course, title: editData.title, description: editData.description, event_date: course.event_date.split('T')[0] }); setIsEditing(false); } catch (error) { alert("Error"); } };
     const startEditingVideo = (vid) => { setEditingVideoId(vid.id); let formattedDate = ''; if (vid.video_date) { const d = new Date(vid.video_date); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); formattedDate = d.toISOString().slice(0, 16); } setNewVideoLink({ title: vid.video_title, link: vid.video_link, date: formattedDate, file: null }); };
     
-    // ✅ تحسين: رفع الفيديو كملف أو لينك
     const handleSaveVideo = async (e) => { 
         e.preventDefault(); 
         if (!newVideoLink.date) { alert("⚠️ Date needed"); return; } 
@@ -210,7 +226,6 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
 
             <div style={{ ...styles.mainLayout, flexDirection: isMobile ? 'column' : 'row' }}>
                 
-                {/* منطقة الفيديو في الموبايل تطلع فوق */}
                 <div style={{ ...styles.contentAreaStyle, order: isMobile ? -1 : 0 }}>
                     {!isUnlocked ? (
                         <div style={styles.lockScreenStyle}><h1>🔒 Locked</h1><button onClick={handleSubscribe} style={styles.bigSubscribeBtn}>Subscribe Now</button></div>
@@ -253,7 +268,7 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                                                 )}
                                             </div>
                                         )}
-                                        <div style={{ marginTop: '20px', color: '#ccc', lineHeight: '1.6' }}>{editData.description}</div>
+                                        <div style={{ marginTop: '20px', color: '#ccc', lineHeight: '1.6', fontSize: isMobile ? '0.9rem' : '1rem' }}>{editData.description}</div>
                                     </div>
                                 )}
 
@@ -265,10 +280,14 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                                             <>
                                                 {canEdit && <div style={styles.adminCard}><h4>Add Question</h4><input value={newQuestion.text} onChange={e => setNewQuestion({ ...newQuestion, text: e.target.value })} style={styles.descInput} placeholder="Question" /><div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px', marginBottom: '10px' }}><input placeholder="A" value={newQuestion.a} onChange={e => setNewQuestion({ ...newQuestion, a: e.target.value })} style={styles.sidebarInput} /><input placeholder="B" value={newQuestion.b} onChange={e => setNewQuestion({ ...newQuestion, b: e.target.value })} style={styles.sidebarInput} /><input placeholder="C" value={newQuestion.c} onChange={e => setNewQuestion({ ...newQuestion, c: e.target.value })} style={styles.sidebarInput} /><input placeholder="D" value={newQuestion.d} onChange={e => setNewQuestion({ ...newQuestion, d: e.target.value })} style={styles.sidebarInput} /></div><div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}><label style={{ color: '#aaa' }}>Correct:</label><select value={newQuestion.correct} onChange={e => setNewQuestion({ ...newQuestion, correct: e.target.value })} style={styles.sidebarInput}><option value="a">A</option><option value="b">B</option><option value="c">C</option><option value="d">D</option></select><button onClick={handleAddQuestion} style={styles.actionBtn}>Add</button></div></div>}
                                                 <div style={{ marginBottom: '20px', color:'#ffd700' }}>Attempts: {attemptsCount || 0}/2 | Best: {bestScore || 0}</div>
-                                                {/* ✅ حماية الشاشة البيضاء في الكويز */}
+                                                
+                                                {/* ✅ إضافة زرار حذف السؤال للأدمن */}
                                                 {Array.isArray(questions) && questions.length > 0 ? questions.map((q, idx) => (
                                                     <div key={q.id || idx} style={styles.questionCard}>
-                                                        <h4>Q{idx + 1}: {q.question_text}</h4>
+                                                        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                                            <h4>Q{idx + 1}: {q.question_text}</h4>
+                                                            {canEdit && <button onClick={() => handleDeleteQuestion(q.id)} style={{...styles.deleteBtn, padding:'5px 10px'}}>🗑️</button>}
+                                                        </div>
                                                         {['a', 'b', 'c', 'd'].map(o => (
                                                             <label key={o} style={{ display: 'block', padding: '10px', cursor:'pointer' }}>
                                                                 <input type="radio" name={`q-${q.id}`} onChange={() => handleOptionSelect(q.id, o)} disabled={(attemptsCount || 0) >= 2 || quizScore !== null} /> {q[`option_${o}`]}
@@ -313,7 +332,17 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                                         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
                                             <input value={newComment} onChange={e => setNewComment(e.target.value)} style={styles.commentInput} placeholder="Comment..." /><button onClick={handleAddComment} style={styles.sendCommentBtn}>Post</button>
                                         </div>
-                                        {comments.map(c => <div key={c.id} style={styles.commentItem}><b>{c.user_name}</b>: {c.comment_text}</div>)}
+                                        {/* ✅ إضافة زرار حذف الكومنت */}
+                                        {comments.map(c => (
+                                            <div key={c.id} style={styles.commentItem}>
+                                                <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
+                                                    <div><b>{c.user_name}</b>: {c.comment_text}</div>
+                                                    {(canEdit || c.user_id === currentUser.id) && (
+                                                        <button onClick={() => handleDeleteComment(c.id)} style={{background:'none', border:'none', cursor:'pointer', color:'#ff6b6b'}}>✕</button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
                             </div>
@@ -321,7 +350,6 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                     )}
                 </div>
 
-                {/* الـ Playlist في الموبايل تنزل تحت */}
                 <div style={{ ...styles.sidebarStyle, width: isMobile ? '100%' : '300px', height: isMobile ? '350px' : 'auto', borderRight: isMobile ? 'none' : styles.sidebarStyle.borderRight, borderTop: isMobile ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
                     <div style={styles.sidebarHeader}><h3 style={{ margin: 0, color: '#ecf0f1', fontSize: '1rem' }}>▶️ Playlist</h3></div>
                     <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -342,7 +370,6 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                             <input placeholder="Title" value={newVideoLink.title} onChange={e => setNewVideoLink({ ...newVideoLink, title: e.target.value })} style={styles.sidebarInput} />
                             <input type="datetime-local" value={newVideoLink.date} onChange={e => setNewVideoLink({ ...newVideoLink, date: e.target.value })} style={{ ...styles.sidebarInput, marginTop: '5px', colorScheme: 'dark' }} />
                             
-                            {/* تحسين: اختيار بين لينك أو ملف */}
                             <div style={{marginTop:'8px'}}>
                                 <input placeholder="Link (YT/Drive)" value={newVideoLink.link} onChange={e => setNewVideoLink({ ...newVideoLink, link: e.target.value, file: null })} style={styles.sidebarInput} />
                                 <div style={{textAlign:'center', color:'#555', margin:'5px 0', fontSize:'10px'}}>OR</div>
@@ -360,7 +387,7 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
     );
 };
 
-// --- Styles الأصلية بتاعتك بدون تغيير حرف واحد ---
+// --- Styles الأصلية ---
 const styles = {
     fullScreenOverlay: { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: '#0f172a', zIndex: 9999, display: 'flex', flexDirection: 'column', fontFamily: "'Cairo', 'Segoe UI', sans-serif" },
     headerStyle: { height: '60px', backgroundColor: 'rgba(15, 23, 42, 0.95)', padding: '0 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)' },
