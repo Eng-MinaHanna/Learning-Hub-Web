@@ -5,9 +5,6 @@ import CertificateModal from './CertificateModal';
 
 const CourseDetailsModal = ({ course, onClose, currentUser }) => {
 
-    // ==========================================
-    // 1. States & Variables
-    // ==========================================
     const [editData, setEditData] = useState({
         title: course?.title || '',
         description: course?.description || ''
@@ -21,7 +18,8 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
     const [quizScore, setQuizScore] = useState(null);
     const [newQuestion, setNewQuestion] = useState({ text: '', a: '', b: '', c: '', d: '', correct: 'a' });
     const [materials, setMaterials] = useState([]);
-    const [newMaterial, setNewMaterial] = useState({ title: '', file: null });
+    // ✅ تعديل: الحالة بقت بتاخد لينك مش ملف
+    const [newMaterial, setNewMaterial] = useState({ title: '', link: '' });
 
     const [isVideoWatched, setIsVideoWatched] = useState(false);
     const [attemptsCount, setAttemptsCount] = useState(0);
@@ -38,8 +36,6 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
     const [newComment, setNewComment] = useState("");
 
     const [realVideoEnded, setRealVideoEnded] = useState(false);
-
-    // ✅ حساس الموبايل (عشان التصميم يظبط)
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
     useEffect(() => {
@@ -53,9 +49,7 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
     const isUnlocked = isSubscribed || isAdmin || isOwner;
     const canEdit = isAdmin || isOwner;
 
-    // ==========================================
-    // 2. Helpers
-    // ==========================================
+    // --- Helpers ---
     const isDriveLink = (url) => url && url.includes("drive.google.com");
     const isYouTubeLink = (url) => url && (url.includes("youtube.com") || url.includes("youtu.be"));
 
@@ -71,6 +65,23 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         return id ? `https://drive.google.com/file/d/${id}/preview` : url;
     };
 
+    // ✅ دالة سحرية لتحويل لينك الدرايف لتحميل مباشر
+    const getDriveDownloadLink = (url) => {
+        if (!url) return "#";
+        if (!url.includes("drive.google.com")) return url; // لو مش درايف رجعه زي ما هو
+
+        let id = null;
+        const pathMatch = url.match(/\/d\/(.*?)(?:\/|$)/);
+        if (pathMatch) id = pathMatch[1];
+        else {
+            const queryMatch = url.match(/[?&]id=([^&]+)/);
+            if (queryMatch) id = queryMatch[1];
+        }
+        
+        // التحويل لرابط تحميل مباشر
+        return id ? `https://drive.google.com/uc?export=download&id=${id}` : url;
+    };
+
     const getLocalVideoUrl = (link) => {
         if (!link) return "";
         return link; 
@@ -82,9 +93,7 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); 
     };
 
-    // ==========================================
-    // 3. Data Fetching
-    // ==========================================
+    // --- Data Fetching ---
     useEffect(() => {
         if (currentUser && course) {
             checkSubscription();
@@ -129,9 +138,6 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
     const fetchQuiz = () => { API.get(`/quiz/${course.id}`).then(res => setQuestions(res.data)); };
     const fetchMaterials = () => { API.get(`/materials/${course.id}`).then(res => setMaterials(res.data)); };
 
-    // ==========================================
-    // 4. Handlers (Actions)
-    // ==========================================
     const handleSubscribe = () => { API.post('/subscribe', { course_id: course.id, student_name: currentUser.name, student_email: currentUser.email }).then(() => { alert("تم الاشتراك! 🚀"); setIsSubscribed(true); }); };
 
     const handleVideoEnd = () => {
@@ -189,7 +195,6 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         }); 
     };
 
-    // ✅ مسح السؤال
     const handleDeleteQuestion = (id) => { 
         if (window.confirm("Delete Question?")) {
             API.delete(`/quiz/delete/${id}`).then(() => fetchQuiz()); 
@@ -204,28 +209,28 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
            .then(() => { setNewComment(""); fetchComments(); }); 
     };
 
-    // ✅ مسح الكومنت
     const handleDeleteComment = (id) => {
         if(window.confirm("Delete Comment?")) {
             API.delete(`/comments/delete/${id}`).then(() => fetchComments());
         }
     };
 
-    // --- Materials Handlers ---
+    // --- Materials Handlers (المعدلة) ---
     const handleAddMaterial = (e) => { 
         e.preventDefault(); 
-        if (!newMaterial.file || !newMaterial.title) return alert("Please fill all fields"); 
+        // ✅ التحقق من اللينك بدل الملف
+        if (!newMaterial.link || !newMaterial.title) return alert("Please enter title and link"); 
         
-        const formData = new FormData(); 
-        formData.append('course_id', course.id); 
-        formData.append('title', newMaterial.title); 
-        formData.append('file', newMaterial.file); 
-        
-        API.post('/materials/add', formData).then(() => { 
-            alert("Material Uploaded! 📄"); 
-            setNewMaterial({ title: '', file: null }); 
+        // ✅ إرسال JSON عادي
+        API.post('/materials/add', {
+            course_id: course.id, 
+            title: newMaterial.title, 
+            link: newMaterial.link 
+        }).then(() => { 
+            alert("Material Link Added! 🔗"); 
+            setNewMaterial({ title: '', link: '' }); 
             fetchMaterials(); 
-        }).catch(err => alert("Upload failed")); 
+        }).catch(err => alert("Failed to add material")); 
     };
 
     const handleDeleteMaterial = (id) => { 
@@ -290,9 +295,6 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
 
     const visibleVideos = Array.isArray(videos) ? videos.filter(vid => canEdit || !vid.video_date || new Date(vid.video_date) <= new Date()) : [];
 
-    // ==========================================
-    // 5. Render
-    // ==========================================
     return (
         <div style={styles.fullScreenOverlay}>
             <div style={styles.headerStyle}>
@@ -307,10 +309,9 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                 {canEdit && <button onClick={() => isEditing ? handleSaveChanges() : setIsEditing(true)} style={styles.editBtn}>{isEditing ? '💾 Save' : '⚙️ Edit'}</button>}
             </div>
 
-            {/* ✅ Layout: يقلب عمودي في الموبايل */}
             <div style={{ ...styles.mainLayout, flexDirection: isMobile ? 'column' : 'row' }}>
                 
-                {/* Content Area (Video & Tabs) */}
+                {/* Content Area */}
                 <div style={{ ...styles.contentAreaStyle, order: isMobile ? -1 : 0 }}>
                     {!isUnlocked ? (
                         <div style={styles.lockScreenStyle}>
@@ -395,7 +396,6 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
 
                                                 <div style={{ marginBottom: '20px', color:'#ffd700' }}>Attempts: {attemptsCount || 0}/2 | Best Score: {bestScore || 0}</div>
                                                 
-                                                {/* ✅ حماية الكويز من الشاشة البيضاء + زر الحذف */}
                                                 {Array.isArray(questions) && questions.length > 0 ? questions.map((q, idx) => (
                                                     <div key={q.id || idx} style={styles.questionCard}>
                                                         <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
@@ -424,17 +424,18 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                                     </div>
                                 )}
 
-                                {/* --- Tab: Materials --- */}
+                                {/* --- Tab: Materials (تم التحديث) --- */}
                                 {activeTab === 'materials' && (
                                     <div style={styles.fadeIn}>
                                         {canEdit && (
                                             <div style={styles.adminCard}>
-                                                <h4 style={{ color: '#4facfe', margin: '0 0 15px 0' }}>📤 Upload Material</h4>
+                                                <h4 style={{ color: '#4facfe', margin: '0 0 15px 0' }}>📤 Add Material (Google Drive Link)</h4>
                                                 <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px' }}>
-                                                    <input placeholder="Title" value={newMaterial.title} onChange={e => setNewMaterial({ ...newMaterial, title: e.target.value })} style={styles.commentInput} />
-                                                    <input type="file" onChange={e => setNewMaterial({ ...newMaterial, file: e.target.files[0] })} style={{ color: 'white' }} />
+                                                    <input placeholder="File Title" value={newMaterial.title} onChange={e => setNewMaterial({ ...newMaterial, title: e.target.value })} style={styles.commentInput} />
+                                                    {/* ✅ خانة اللينك بدل الملف */}
+                                                    <input placeholder="Paste Google Drive Link here..." value={newMaterial.link} onChange={e => setNewMaterial({ ...newMaterial, link: e.target.value })} style={styles.sidebarInput} />
                                                 </div>
-                                                <button onClick={handleAddMaterial} style={{ ...styles.actionBtn, background: '#4facfe', marginTop: '10px', width: isMobile ? '100%' : 'auto' }}>Upload</button>
+                                                <button onClick={handleAddMaterial} style={{ ...styles.actionBtn, background: '#4facfe', marginTop: '10px', width: isMobile ? '100%' : 'auto' }}>Add Link</button>
                                             </div>
                                         )}
                                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px', marginTop: '20px' }}>
@@ -442,7 +443,8 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                                                 <div key={m.id} style={styles.materialCard}>
                                                     <div style={{ fontSize: '2rem' }}>📄</div>
                                                     <div style={{ fontWeight: 'bold', margin: '10px 0' }}>{m.title}</div>
-                                                    <a href={m.file_path} target="_blank" rel="noreferrer" style={styles.downloadBtn}>Download</a>
+                                                    {/* ✅ استخدام الدالة السحرية للتحميل */}
+                                                    <a href={getDriveDownloadLink(m.file_path)} target="_blank" rel="noreferrer" style={styles.downloadBtn}>Download</a>
                                                     {canEdit && <button onClick={() => handleDeleteMaterial(m.id)} style={{ ...styles.deleteBtn, marginTop: '10px' }}>Delete</button>}
                                                 </div>
                                             ))}
@@ -463,7 +465,6 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                                                     <div>
                                                         <b style={{color:'#4facfe'}}>{c.user_name}</b>: <span style={{marginLeft:'5px'}}>{c.comment_text}</span>
                                                     </div>
-                                                    {/* ✅ زر حذف الكومنت */}
                                                     {(canEdit || c.user_id === currentUser.id) && (
                                                         <button onClick={() => handleDeleteComment(c.id)} style={{background:'none', border:'none', cursor:'pointer', color:'#ff6b6b', fontSize:'1.1rem'}}>×</button>
                                                     )}
