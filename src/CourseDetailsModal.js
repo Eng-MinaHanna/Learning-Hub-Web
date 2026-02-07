@@ -12,13 +12,12 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
 
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [videos, setVideos] = useState([]);
-    const [comments, setComments] = useState([]);
+    // ❌ حذفنا comments state
     const [questions, setQuestions] = useState([]);
     const [userAnswers, setUserAnswers] = useState({});
     const [quizScore, setQuizScore] = useState(null);
     const [newQuestion, setNewQuestion] = useState({ text: '', a: '', b: '', c: '', d: '', correct: 'a' });
     const [materials, setMaterials] = useState([]);
-    // ✅ تعديل: الحالة بقت بتاخد لينك مش ملف
     const [newMaterial, setNewMaterial] = useState({ title: '', link: '' });
 
     const [isVideoWatched, setIsVideoWatched] = useState(false);
@@ -33,7 +32,7 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
 
     const [editingVideoId, setEditingVideoId] = useState(null);
     const [newVideoLink, setNewVideoLink] = useState({ title: '', link: '', date: '', file: null });
-    const [newComment, setNewComment] = useState("");
+    // ❌ حذفنا newComment state
 
     const [realVideoEnded, setRealVideoEnded] = useState(false);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -65,11 +64,9 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         return id ? `https://drive.google.com/file/d/${id}/preview` : url;
     };
 
-    // ✅ دالة سحرية لتحويل لينك الدرايف لتحميل مباشر
     const getDriveDownloadLink = (url) => {
         if (!url) return "#";
-        if (!url.includes("drive.google.com")) return url; // لو مش درايف رجعه زي ما هو
-
+        if (!url.includes("drive.google.com")) return url;
         let id = null;
         const pathMatch = url.match(/\/d\/(.*?)(?:\/|$)/);
         if (pathMatch) id = pathMatch[1];
@@ -77,8 +74,6 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
             const queryMatch = url.match(/[?&]id=([^&]+)/);
             if (queryMatch) id = queryMatch[1];
         }
-        
-        // التحويل لرابط تحميل مباشر
         return id ? `https://drive.google.com/uc?export=download&id=${id}` : url;
     };
 
@@ -93,12 +88,11 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); 
     };
 
-    // --- Data Fetching ---
     useEffect(() => {
         if (currentUser && course) {
             checkSubscription();
             fetchVideos();
-            fetchComments();
+            // ❌ حذفنا fetchComments
             fetchQuiz();
             fetchMaterials();
             fetchCourseProgress();
@@ -134,13 +128,7 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         }); 
     };
 
-    // ✅ استبدل دالة fetchComments القديمة بدي:
-const fetchComments = () => { 
-    // لازم نكلم المسار المخصص للكورسات اللي عملناه في السيرفر
-    API.get(`/comments/course/${course.id}`)
-       .then(res => setComments(res.data))
-       .catch(err => console.error("Chat Error:", err)); 
-};
+    // ❌ حذفنا fetchComments
     const fetchQuiz = () => { API.get(`/quiz/${course.id}`).then(res => setQuestions(res.data)); };
     const fetchMaterials = () => { API.get(`/materials/${course.id}`).then(res => setMaterials(res.data)); };
 
@@ -168,7 +156,6 @@ const fetchComments = () => {
         });
     };
 
-    // --- Quiz Handlers ---
     const handleSubmitQuiz = () => { 
         if (attemptsCount >= 2) return alert("No attempts left."); 
         let score = 0; 
@@ -207,34 +194,12 @@ const fetchComments = () => {
         }
     };
 
-// ✅ استبدل دالة handleAddComment القديمة بدي:
-const handleAddComment = (e) => { 
-    e.preventDefault(); 
-    if(!newComment.trim()) return; 
-    
-    API.post('/comments/add', { 
-        course_id: course.id, // نبعت معرف الكورس صراحة
-        user_name: currentUser.name, 
-        user_avatar: currentUser.profile_pic, // نبعت الصورة عشان تظهر في الشات
-        comment_text: newComment 
-    }).then(() => { 
-        setNewComment(""); 
-        fetchComments(); // تحديث فوري للشات
-    }); 
-};
-    const handleDeleteComment = (id) => {
-        if(window.confirm("Delete Comment?")) {
-            API.delete(`/comments/delete/${id}`).then(() => fetchComments());
-        }
-    };
+    // ❌ حذفنا دوال الشات (handleAddComment, handleDeleteComment)
 
-    // --- Materials Handlers (المعدلة) ---
     const handleAddMaterial = (e) => { 
         e.preventDefault(); 
-        // ✅ التحقق من اللينك بدل الملف
         if (!newMaterial.link || !newMaterial.title) return alert("Please enter title and link"); 
         
-        // ✅ إرسال JSON عادي
         API.post('/materials/add', {
             course_id: course.id, 
             title: newMaterial.title, 
@@ -252,7 +217,6 @@ const handleAddComment = (e) => {
         }
     };
 
-    // --- Video/Course Editing ---
     const handleSaveChanges = async () => { 
         try { 
             await API.put(`/activities/update/${course.id}`, { 
@@ -324,7 +288,6 @@ const handleAddComment = (e) => {
 
             <div style={{ ...styles.mainLayout, flexDirection: isMobile ? 'column' : 'row' }}>
                 
-                {/* Content Area */}
                 <div style={{ ...styles.contentAreaStyle, order: isMobile ? -1 : 0 }}>
                     {!isUnlocked ? (
                         <div style={styles.lockScreenStyle}>
@@ -338,13 +301,12 @@ const handleAddComment = (e) => {
                                     <button onClick={() => setActiveTab('lesson')} style={activeTab === 'lesson' ? styles.activeTabBtn : styles.tabBtn}>📺 Lesson</button>
                                     <button onClick={() => setActiveTab('quiz')} style={activeTab === 'quiz' ? styles.activeTabBtn : styles.tabBtn}>🧩 Quiz ({questions.length})</button>
                                     <button onClick={() => setActiveTab('materials')} style={activeTab === 'materials' ? styles.activeTabBtn : styles.tabBtn}>📁 Files</button>
-                                    <button onClick={() => setActiveTab('comments')} style={activeTab === 'comments' ? styles.activeTabBtn : styles.tabBtn}>💬 Chat</button>
+                                    {/* ❌ حذفنا زرار الشات */}
                                 </div>
                             </div>
 
                             <div style={{ ...styles.tabContent, padding: isMobile ? '15px' : '30px' }}>
                                 
-                                {/* --- Tab: Lesson --- */}
                                 {activeTab === 'lesson' && (
                                     <div style={styles.fadeIn}>
                                         <div style={styles.playerContainer}>
@@ -376,7 +338,6 @@ const handleAddComment = (e) => {
                                     </div>
                                 )}
 
-                                {/* --- Tab: Quiz --- */}
                                 {activeTab === 'quiz' && (
                                     <div style={styles.fadeIn}>
                                         {!isVideoWatched && !canEdit ? (
@@ -437,7 +398,6 @@ const handleAddComment = (e) => {
                                     </div>
                                 )}
 
-                                {/* --- Tab: Materials (تم التحديث) --- */}
                                 {activeTab === 'materials' && (
                                     <div style={styles.fadeIn}>
                                         {canEdit && (
@@ -445,7 +405,6 @@ const handleAddComment = (e) => {
                                                 <h4 style={{ color: '#4facfe', margin: '0 0 15px 0' }}>📤 Add Material (Google Drive Link)</h4>
                                                 <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px' }}>
                                                     <input placeholder="File Title" value={newMaterial.title} onChange={e => setNewMaterial({ ...newMaterial, title: e.target.value })} style={styles.commentInput} />
-                                                    {/* ✅ خانة اللينك بدل الملف */}
                                                     <input placeholder="Paste Google Drive Link here..." value={newMaterial.link} onChange={e => setNewMaterial({ ...newMaterial, link: e.target.value })} style={styles.sidebarInput} />
                                                 </div>
                                                 <button onClick={handleAddMaterial} style={{ ...styles.actionBtn, background: '#4facfe', marginTop: '10px', width: isMobile ? '100%' : 'auto' }}>Add Link</button>
@@ -456,7 +415,6 @@ const handleAddComment = (e) => {
                                                 <div key={m.id} style={styles.materialCard}>
                                                     <div style={{ fontSize: '2rem' }}>📄</div>
                                                     <div style={{ fontWeight: 'bold', margin: '10px 0' }}>{m.title}</div>
-                                                    {/* ✅ استخدام الدالة السحرية للتحميل */}
                                                     <a href={getDriveDownloadLink(m.file_path)} target="_blank" rel="noreferrer" style={styles.downloadBtn}>Download</a>
                                                     {canEdit && <button onClick={() => handleDeleteMaterial(m.id)} style={{ ...styles.deleteBtn, marginTop: '10px' }}>Delete</button>}
                                                 </div>
@@ -465,33 +423,12 @@ const handleAddComment = (e) => {
                                     </div>
                                 )}
 
-                                {/* --- Tab: Comments --- */}
-                                {activeTab === 'comments' && (
-                                    <div style={styles.fadeIn}>
-                                        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-                                            <input value={newComment} onChange={e => setNewComment(e.target.value)} style={styles.commentInput} placeholder="Write a comment..." />
-                                            <button onClick={handleAddComment} style={styles.sendCommentBtn}>Post</button>
-                                        </div>
-                                        {comments.map(c => (
-                                            <div key={c.id} style={styles.commentItem}>
-                                                <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
-                                                    <div>
-                                                        <b style={{color:'#4facfe'}}>{c.user_name}</b>: <span style={{marginLeft:'5px'}}>{c.comment_text}</span>
-                                                    </div>
-                                                    {(canEdit || c.user_id === currentUser.id) && (
-                                                        <button onClick={() => handleDeleteComment(c.id)} style={{background:'none', border:'none', cursor:'pointer', color:'#ff6b6b', fontSize:'1.1rem'}}>×</button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                                {/* ❌ حذفنا محتوى الشات */}
                             </div>
                         </>
                     )}
                 </div>
 
-                {/* Sidebar (Playlist) */}
                 <div style={{ ...styles.sidebarStyle, width: isMobile ? '100%' : '300px', height: isMobile ? '350px' : 'auto', borderRight: isMobile ? 'none' : styles.sidebarStyle.borderRight, borderTop: isMobile ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
                     <div style={styles.sidebarHeader}><h3 style={{ margin: 0, color: '#ecf0f1', fontSize: '1rem' }}>▶️ Playlist</h3></div>
                     <div style={{ flex: 1, overflowY: 'auto' }}>
