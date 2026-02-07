@@ -12,7 +12,6 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
 
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [videos, setVideos] = useState([]);
-    // ❌ حذفنا comments state
     const [questions, setQuestions] = useState([]);
     const [userAnswers, setUserAnswers] = useState({});
     const [quizScore, setQuizScore] = useState(null);
@@ -32,7 +31,6 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
 
     const [editingVideoId, setEditingVideoId] = useState(null);
     const [newVideoLink, setNewVideoLink] = useState({ title: '', link: '', date: '', file: null });
-    // ❌ حذفنا newComment state
 
     const [realVideoEnded, setRealVideoEnded] = useState(false);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -92,7 +90,6 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         if (currentUser && course) {
             checkSubscription();
             fetchVideos();
-            // ❌ حذفنا fetchComments
             fetchQuiz();
             fetchMaterials();
             fetchCourseProgress();
@@ -128,7 +125,6 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         }); 
     };
 
-    // ❌ حذفنا fetchComments
     const fetchQuiz = () => { API.get(`/quiz/${course.id}`).then(res => setQuestions(res.data)); };
     const fetchMaterials = () => { API.get(`/materials/${course.id}`).then(res => setMaterials(res.data)); };
 
@@ -193,8 +189,6 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
             API.delete(`/quiz/delete/${id}`).then(() => fetchQuiz()); 
         }
     };
-
-    // ❌ حذفنا دوال الشات (handleAddComment, handleDeleteComment)
 
     const handleAddMaterial = (e) => { 
         e.preventDefault(); 
@@ -301,7 +295,6 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                                     <button onClick={() => setActiveTab('lesson')} style={activeTab === 'lesson' ? styles.activeTabBtn : styles.tabBtn}>📺 Lesson</button>
                                     <button onClick={() => setActiveTab('quiz')} style={activeTab === 'quiz' ? styles.activeTabBtn : styles.tabBtn}>🧩 Quiz ({questions.length})</button>
                                     <button onClick={() => setActiveTab('materials')} style={activeTab === 'materials' ? styles.activeTabBtn : styles.tabBtn}>📁 Files</button>
-                                    {/* ❌ حذفنا زرار الشات */}
                                 </div>
                             </div>
 
@@ -422,8 +415,6 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                                         </div>
                                     </div>
                                 )}
-
-                                {/* ❌ حذفنا محتوى الشات */}
                             </div>
                         </>
                     )}
