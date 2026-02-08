@@ -191,7 +191,15 @@ function App() {
           </div>
 
           <nav style={styles.navStack}>
+              
             <NavBtn icon="🏠" label="Home" active={currentView === 'home'} onClick={() => setCurrentView('home')} />
+                        {/* ✅ 2. إضافة زرار الموقع الرسمي (External Link) */}
+            <NavBtn 
+                icon="🌐" 
+                label="Main Website" 
+                active={false} 
+                onClick={() => window.open('https://studentbranches.ieee.org/eg-hiet-sb/', '_blank')} 
+            />
             <NavBtn icon="📊" label="Dashboard" active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} />
             <NavBtn icon="📅" label="Schedule" active={currentView === 'schedule'} onClick={() => setCurrentView('schedule')} />
             
@@ -202,13 +210,6 @@ function App() {
             <NavBtn icon="🌍" label="Community" active={currentView === 'community'} onClick={() => setCurrentView('community')} />
             <NavBtn icon="⚙️" label="Settings" active={currentView === 'settings'} onClick={() => setCurrentView('settings')} />
             
-            {/* ✅ 2. إضافة زرار الموقع الرسمي (External Link) */}
-            <NavBtn 
-                icon="🌐" 
-                label="Main Website" 
-                active={false} 
-                onClick={() => window.open('https://studentbranches.ieee.org/eg-hiet-sb/', '_blank')} 
-            />
 
             <button onClick={handleLogout} style={styles.logoutBtn}>🚪 Logout</button>
           </nav>
