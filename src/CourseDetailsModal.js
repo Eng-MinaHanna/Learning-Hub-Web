@@ -35,6 +35,11 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
     const [realVideoEnded, setRealVideoEnded] = useState(false);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
+    // ✅ State للتاسكات (جديد)
+    const [taskLink, setTaskLink] = useState("");
+    const [mySubmission, setMySubmission] = useState(null);
+    const [studentSubmissions, setStudentSubmissions] = useState([]); 
+
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
         window.addEventListener('resize', handleResize);
@@ -96,12 +101,30 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
         }
     }, [course, currentUser]);
 
+    // ✅ لما الفيديو يتغير، نجيب حالة التاسك
     useEffect(() => {
         if (currentUser && activeVideo) {
             fetchVideoStatus();
             setRealVideoEnded(false);
+            fetchTaskStatus(); // (جديد)
         }
     }, [activeVideo, currentUser]);
+
+    const fetchTaskStatus = () => {
+        if (!activeVideo?.id) return;
+
+        // 1. لو طالب: هات تاسكي أنا بس
+        API.get(`/tasks/my/${activeVideo.id}`).then(res => {
+            setMySubmission(res.data.length > 0 ? res.data[0] : null);
+        }).catch(() => {});
+
+        // 2. لو محاضر أو أدمن: هات كل التاسكات
+        if (canEdit) {
+            API.get(`/tasks/all/${activeVideo.id}`).then(res => {
+                setStudentSubmissions(res.data);
+            }).catch(() => {});
+        }
+    };
 
     const fetchVideoStatus = () => { 
         if(!activeVideo?.id) return;
@@ -150,6 +173,19 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
             if (!auto) alert("Marked as Completed ✅");
             fetchCourseProgress();
         });
+    };
+
+    const handleSubmitTask = () => {
+        if (!taskLink.trim()) return alert("Please enter a link!");
+        API.post('/tasks/submit', {
+            course_id: course.id,
+            video_id: activeVideo.id,
+            task_link: taskLink
+        }).then(() => {
+            alert("Task Submitted Successfully! 🎉");
+            setTaskLink("");
+            fetchTaskStatus(); 
+        }).catch(() => alert("Error submitting task"));
     };
 
     const handleSubmitQuiz = () => { 
@@ -328,6 +364,73 @@ const CourseDetailsModal = ({ course, onClose, currentUser }) => {
                                             </div>
                                         )}
                                         <div style={{ marginTop: '20px', color: '#ccc', lineHeight: '1.6', fontSize: isMobile ? '0.9rem' : '1rem' }}>{editData.description}</div>
+
+                                        {/* ✅ قسم التاسكات الجديد */}
+                                        {activeVideo && (
+                                            <div style={{ marginTop: '40px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                                                <h3 style={{ color: '#ffd700', marginBottom: '15px' }}>📝 Task Submission</h3>
+                                                
+                                                {/* 👤 عرض الطالب */}
+                                                {!canEdit && (
+                                                    <div style={styles.taskCard}>
+                                                        {mySubmission ? (
+                                                            <div>
+                                                                <div style={{color: '#00e676', fontWeight: 'bold', marginBottom: '10px'}}>✅ You have submitted a task!</div>
+                                                                <div style={{fontSize: '0.9rem', color: '#ccc'}}>Link: <a href={mySubmission.task_link} target="_blank" rel="noreferrer" style={{color: '#4facfe'}}>{mySubmission.task_link}</a></div>
+                                                                <div style={{fontSize: '0.8rem', color: '#666', marginTop: '5px'}}>Submitted at: {new Date(mySubmission.submitted_at).toLocaleString()}</div>
+                                                                <div style={{marginTop: '15px', fontStyle: 'italic', color: '#aaa', fontSize: '0.8rem'}}>To update, submit a new link:</div>
+                                                            </div>
+                                                        ) : (
+                                                            <div style={{color: '#aaa', marginBottom: '10px'}}>No task submitted yet.</div>
+                                                        )}
+                                                        <div style={{display: 'flex', gap: '10px', marginTop: '10px'}}>
+                                                            <input 
+                                                                placeholder="Paste your Task Link (Drive, Github, etc.)" 
+                                                                value={taskLink} 
+                                                                onChange={(e) => setTaskLink(e.target.value)} 
+                                                                style={styles.commentInput} 
+                                                            />
+                                                            <button onClick={handleSubmitTask} style={styles.sendCommentBtn}>Submit</button>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* 🎓 عرض المحاضر والأدمن */}
+                                                {canEdit && (
+                                                    <div style={styles.adminCard}>
+                                                        <h4 style={{color: '#4facfe', marginTop: 0}}>👨‍🎓 Student Submissions ({studentSubmissions.length})</h4>
+                                                        {studentSubmissions.length > 0 ? (
+                                                            <div style={{maxHeight: '300px', overflowY: 'auto'}}>
+                                                                <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem'}}>
+                                                                    <thead>
+                                                                        <tr style={{borderBottom: '1px solid #444', textAlign: 'left'}}>
+                                                                            <th style={{padding: '10px', color: '#aaa'}}>Student</th>
+                                                                            <th style={{padding: '10px', color: '#aaa'}}>Link</th>
+                                                                            <th style={{padding: '10px', color: '#aaa'}}>Date</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {studentSubmissions.map((sub, idx) => (
+                                                                            <tr key={idx} style={{borderBottom: '1px solid rgba(255,255,255,0.05)'}}>
+                                                                                <td style={{padding: '10px', color: 'white'}}>{sub.student_name}</td>
+                                                                                <td style={{padding: '10px'}}>
+                                                                                    <a href={sub.task_link} target="_blank" rel="noreferrer" style={{color: '#4facfe', textDecoration: 'none'}}>View Task 🔗</a>
+                                                                                </td>
+                                                                                <td style={{padding: '10px', color: '#888', fontSize: '0.8rem'}}>
+                                                                                    {new Date(sub.submitted_at).toLocaleDateString()}
+                                                                                </td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        ) : (
+                                                            <div style={{color: '#666', fontStyle: 'italic'}}>No submissions yet.</div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -497,6 +600,8 @@ const styles = {
     downloadBtn: { display: 'inline-block', color: '#4facfe', textDecoration: 'none', border: '1px solid #4facfe', padding: '5px 15px', borderRadius: '20px', fontSize: '0.9rem' },
     lockScreenStyle: { height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'white' },
     adminCard: { backgroundColor: 'rgba(30, 41, 59, 0.6)', padding: '20px', borderRadius: '15px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.05)' },
+    // ✅ ستايلات التاسك الجديدة
+    taskCard: { background: 'rgba(79, 172, 254, 0.1)', padding: '15px', borderRadius: '12px', border: '1px solid rgba(79, 172, 254, 0.3)' },
     sidebarInput: { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', outline: 'none' },
     descInput: { width: '100%', padding: '15px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', outline: 'none' },
     actionBtn: { padding: '8px 16px', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' },
