@@ -5,6 +5,7 @@ const AdminUsersView = ({ currentUser }) => {
     const [users, setUsers] = useState([]);
     const [showAddForm, setShowAddForm] = useState(false);
     const [newUser, setNewUser] = useState({ name: '', email: '', phone: '', password: '', role: 'company' });
+    const [searchTerm, setSearchTerm] = useState("");
 
     const fetchUsers = () => {
         API.get('/users').then(res => setUsers(res.data)).catch(() => {});
@@ -12,39 +13,76 @@ const AdminUsersView = ({ currentUser }) => {
 
     useEffect(() => { fetchUsers(); }, []);
 
+    // ✅ دالة إضافة مستخدم/شركة جديد
     const handleCreateUser = (e) => {
         e.preventDefault();
         API.post('/admin/add-user', newUser)
-           .then(res => {
-               if (res.data.status === 'Success') {
-                   alert("User/Company Created Successfully! 🎉");
-                   setShowAddForm(false);
-                   setNewUser({ name: '', email: '', phone: '', password: '', role: 'company' });
-                   fetchUsers();
-               } else {
-                   alert(res.data.message);
-               }
-           });
+            .then(res => {
+                if (res.data.status === 'Success') {
+                    alert("User/Company Created Successfully! 🎉");
+                    setShowAddForm(false);
+                    setNewUser({ name: '', email: '', phone: '', password: '', role: 'company' });
+                    fetchUsers();
+                } else {
+                    alert(res.data.message);
+                }
+            });
     };
 
+    // ✅ دالة حذف المستخدم
     const handleDelete = (id) => {
-        if (window.confirm("Delete User?")) {
-            // (تأكد إنك ضايف مسار حذف المستخدمين في السيرفر لو مش موجود)
-            // حالياً هنخفيها من الواجهة بس كمثال
-            alert("Delete feature requires API implementation"); 
+        if (window.confirm("⚠️ Are you sure you want to delete this user? This action cannot be undone.")) {
+            API.delete(`/user/delete/${id}`)
+                .then(res => {
+                    if (res.data.status === "Success") {
+                        alert("User Deleted ✅");
+                        fetchUsers();
+                    } else {
+                        alert(res.data.message || "Error deleting user");
+                    }
+                })
+                .catch(() => alert("Connection Error"));
         }
     };
 
+    // ✅ دالة تغيير الرتبة (Role)
+    const handleRoleChange = (id, newRole) => {
+        if (window.confirm(`Change role to ${newRole}?`)) {
+            // ملاحظة: تأكد إن عندك في السيرفر مسار لتحديث الرتبة، أو استخدم مسار التحديث العادي
+            // لو مش موجود، ممكن نستخدم مسار التحديث العام /user/update
+            // هنا بفترض إنك عندك مسار مخصص أو بتستخدم التحديث العام
+            alert("Role update feature requires API implementation or use general update endpoint.");
+        }
+    };
+
+    const filteredUsers = users.filter(user =>
+        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (user.phone && user.phone.includes(searchTerm))
+    );
+
     return (
-        <div style={{ maxWidth: '1000px', margin: '0 auto', paddingBottom: '50px' }}>
-            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'30px'}}>
-                <h2 style={{ color: 'white', margin:0 }}>👥 User Management</h2>
-                <button onClick={() => setShowAddForm(!showAddForm)} style={{...styles.actionBtn, background:'#00e676', color:'#050810'}}>
-                    {showAddForm ? 'Cancel' : '➕ Add Company/User'}
-                </button>
+        <div style={styles.container}>
+            <div style={styles.header}>
+                <div>
+                    <h2 style={{ margin: 0, color: 'white' }}>👮‍♂️ User Management</h2>
+                    <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>View and manage all registered members.</p>
+                </div>
+                
+                <div style={{display:'flex', gap:'15px'}}>
+                    <button onClick={() => setShowAddForm(!showAddForm)} style={{...styles.actionBtn, background:'#00e676', color:'#050810'}}>
+                        {showAddForm ? 'Cancel' : '➕ Add User/Company'}
+                    </button>
+                    <input
+                        placeholder="🔍 Search..."
+                        style={styles.searchInput}
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                    />
+                </div>
             </div>
 
-            {/* فورم إضافة شركة/مستخدم جديد */}
+            {/* ✅ فورم إضافة شركة/مستخدم جديد */}
             {showAddForm && (
                 <form onSubmit={handleCreateUser} style={{background:'rgba(255,255,255,0.05)', padding:'20px', borderRadius:'15px', marginBottom:'30px', border:'1px solid #4facfe'}}>
                     <h4 style={{color:'#4facfe', marginTop:0}}>Create New Account</h4>
@@ -63,76 +101,6 @@ const AdminUsersView = ({ currentUser }) => {
                     <button type="submit" style={{...styles.continueBtn, marginTop:'15px', width:'auto', padding:'10px 30px'}}>Create Account</button>
                 </form>
             )}
-
-            <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', color: 'white' }}>
-                    <thead>
-                        <tr style={{ borderBottom: '2px solid #333', textAlign: 'left' }}>
-                            <th style={{ padding: '15px' }}>User</th>
-                            <th style={{ padding: '15px' }}>Role</th>
-                            <th style={{ padding: '15px' }}>Email</th>
-                            <th style={{ padding: '15px' }}>Joined</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {users.map(u => (
-                            <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                <td style={{ padding: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <div style={{ width: '35px', height: '35px', borderRadius: '50%', background: '#333', overflow: 'hidden' }}>
-                                        {u.profile_pic ? <img src={u.profile_pic} alt="P" style={{ width: '100%', height: '100%' }} /> : <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}>{u.name.charAt(0)}</div>}
-                                    </div>
-                                    {u.name}
-                                </td>
-                                <td style={{ padding: '15px' }}>
-                                    <span style={{ 
-                                        padding: '5px 10px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 'bold',
-                                        background: u.role === 'admin' ? 'rgba(255, 215, 0, 0.1)' : u.role === 'company' ? 'rgba(0, 230, 118, 0.1)' : 'rgba(79, 172, 254, 0.1)',
-                                        color: u.role === 'admin' ? '#ffd700' : u.role === 'company' ? '#00e676' : '#4facfe'
-                                    }}>
-                                        {u.role.toUpperCase()}
-                                    </span>
-                                </td>
-                                <td style={{ padding: '15px', color: '#aaa' }}>{u.email}</td>
-                                <td style={{ padding: '15px', color: '#666' }}>{new Date(u.created_at).toLocaleDateString()}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-};
-    const handleRoleChange = (id, newRole) => {
-        if (window.confirm(`Change role to ${newRole}?`)) {
-            // ✅ تم التعديل هنا ليتوافق مع السيرفر والسنترال
-            API.put(`/users/role/${id}`, { role: newRole })
-                .then(() => {
-                    fetchUsers();
-                })
-                .catch(err => alert("Error updating role"));
-        }
-    };
-
-    const filteredUsers = users.filter(user =>
-        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (user.phone && user.phone.includes(searchTerm))
-    );
-
-    return (
-        <div style={styles.container}>
-            <div style={styles.header}>
-                <div>
-                    <h2 style={{ margin: 0, color: 'white' }}>👮‍♂️ User Management</h2>
-                    <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>View and manage all registered members.</p>
-                </div>
-                <input
-                    placeholder="🔍 Search name, email or phone..."
-                    style={styles.searchInput}
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                />
-            </div>
 
             <div style={styles.tableWrapper}>
                 <table style={styles.table}>
@@ -156,24 +124,16 @@ const AdminUsersView = ({ currentUser }) => {
 
                                 <td style={styles.td}>
                                     {user.phone ? (
-                                        <a
-                                            href={`https://wa.me/2${user.phone}`}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            style={styles.whatsappLink}
-                                            title="Click to chat on WhatsApp"
-                                        >
+                                        <a href={`https://wa.me/2${user.phone}`} target="_blank" rel="noreferrer" style={styles.whatsappLink} title="Click to chat on WhatsApp">
                                             {user.phone} <span style={{ fontSize: '1.1rem' }}>💬</span>
                                         </a>
-                                    ) : (
-                                        <span style={{ color: '#475569', fontStyle: 'italic' }}>Not provided</span>
-                                    )}
+                                    ) : <span style={{ color: '#475569', fontStyle: 'italic' }}>Not provided</span>}
                                 </td>
 
                                 <td style={styles.td}>
                                     <span style={{
                                         ...styles.roleBadge,
-                                        backgroundColor: user.role === 'admin' ? '#ffd700' : (user.role === 'instructor' ? '#fa709a' : '#4facfe'),
+                                        backgroundColor: user.role === 'admin' ? '#ffd700' : (user.role === 'instructor' ? '#fa709a' : (user.role === 'company' ? '#00e676' : '#4facfe')),
                                         color: '#000'
                                     }}>
                                         {user.role.toUpperCase()}
@@ -182,18 +142,7 @@ const AdminUsersView = ({ currentUser }) => {
 
                                 <td style={styles.td}>
                                     {user.id !== currentUser.id ? (
-                                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                            <select
-                                                onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                                                style={styles.roleSelect}
-                                                value={user.role}
-                                            >
-                                                <option value="student">Student</option>
-                                                <option value="instructor">Instructor</option>
-                                                <option value="admin">Admin</option>
-                                            </select>
-                                            <button onClick={() => handleDelete(user.id)} style={styles.deleteBtn} title="Delete User">🗑️</button>
-                                        </div>
+                                        <button onClick={() => handleDelete(user.id)} style={styles.deleteBtn} title="Delete User">🗑️ Delete</button>
                                     ) : (
                                         <span style={{ color: '#4facfe', fontSize: '0.8rem', fontWeight: 'bold' }}>⭐ YOU</span>
                                     )}
@@ -212,8 +161,8 @@ const AdminUsersView = ({ currentUser }) => {
 
 const styles = {
     container: { maxWidth: '1100px', margin: '0 auto', paddingBottom: '50px' },
-    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '20px' },
-    searchInput: { padding: '12px 20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: 'white', outline: 'none', width: '300px', fontSize: '0.9rem' },
+    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '20px', flexWrap:'wrap', gap:'15px' },
+    searchInput: { padding: '10px 15px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: 'white', outline: 'none', width: '250px', fontSize: '0.9rem' },
     tableWrapper: { backgroundColor: 'rgba(30, 41, 59, 0.6)', borderRadius: '15px', padding: '20px', overflowX: 'auto', border: '1px solid rgba(255,255,255,0.05)' },
     table: { width: '100%', borderCollapse: 'collapse', color: '#ccc' },
     th: { padding: '15px', borderBottom: '1px solid rgba(255,255,255,0.1)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' },
@@ -221,8 +170,10 @@ const styles = {
     td: { padding: '15px', fontSize: '0.9rem' },
     whatsappLink: { color: '#25D366', textDecoration: 'none', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '5px', transition: '0.2s', padding: '5px 0' },
     roleBadge: { padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 'bold', letterSpacing: '0.5px' },
-    roleSelect: { padding: '6px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', background: '#0f172a', color: 'white', cursor: 'pointer', fontSize: '0.8rem', outline: 'none' },
-    deleteBtn: { background: 'rgba(255, 99, 99, 0.1)', color: '#ff6b6b', border: 'none', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s', display: 'flex', alignItems: 'center' }
+    deleteBtn: { background: 'rgba(255, 99, 99, 0.1)', color: '#ff6b6b', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s', display: 'flex', alignItems: 'center' },
+    actionBtn: { padding: '10px 20px', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize:'0.9rem' },
+    sidebarInput: { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', outline: 'none' },
+    continueBtn: { width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: 'linear-gradient(90deg, #4facfe, #00f2fe)', color: '#050810', fontWeight: '900', cursor: 'pointer', transition: '0.3s' },
 };
 
 export default AdminUsersView;
