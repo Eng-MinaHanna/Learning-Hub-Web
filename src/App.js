@@ -8,6 +8,7 @@ import LandingPage from './LandingPage';
 import CalendarView from './CalendarView';
 import CommunityView from './CommunityView';
 import NotificationsModal from './NotificationsModal';
+import SponsorsPartnersBoard from './SponsorsPartnersBoard';
 
 // ✅ Import components from separate files
 import AdminUsersView from './AdminUsersView';
@@ -255,6 +256,7 @@ function App() {
           {currentView === 'schedule' && <CalendarView onOpenCourse={(c)=>setSelectedCourse(activities.find(a=>a.id===c))} />}
           {currentView === 'users' && <AdminUsersView currentUser={user} />}
           {currentView === 'community' && <CommunityView />}
+          {currentView === 'sponsors' && user.role === 'admin' && <SponsorsPartnersBoard />}
           {currentView === 'settings' && <SettingsView user={user} onUpdateUser={handleUserUpdate} />}
         </main>
       </div>
