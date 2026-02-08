@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import API from './api'; // ✅ تم استيراد الـ API
-
+import './App.css';
 const LandingPage = ({ onGetStarted, user }) => {
     // ----------------------------------------------------------------
     // 1️⃣ إعداد البيانات
