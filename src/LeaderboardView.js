@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import API from './api'; // ✅ Correct API import
+import API from './api'; 
 
 const LeaderboardView = () => {
     const [leaders, setLeaders] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // ✅ Fetching data from online server
+        // Fetching data from online server
         API.get('/leaderboard')
             .then(res => {
                 setLeaders(res.data);
@@ -27,6 +27,7 @@ const LeaderboardView = () => {
     };
 
     // Helper to safely calculate score
+    // Matches the SQL fields: video_points, quiz_points, post_points, comment_points
     const calculateScore = (person) => {
         return (Number(person.video_points) || 0) + 
                (Number(person.quiz_points) || 0) + 
@@ -44,42 +45,46 @@ const LeaderboardView = () => {
             </div>
 
             <div style={styles.list}>
-                {leaders.map((person, index) => (
-                    <div key={person.id || index} style={{
-                        ...styles.card,
-                        borderLeft: getRankBorder(index)
-                    }}>
-                        <div style={styles.rank}>#{index + 1}</div>
-                        
-                        {/* ✅ Image handling: Direct Cloud Link */}
-                        <div style={styles.avatarContainer}>
-                            {person.profile_pic ? (
-                                <img 
-                                    src={person.profile_pic} 
-                                    alt={person.name} 
-                                    style={styles.avatarImg} 
-                                    onError={(e) => { e.target.src = 'https://via.placeholder.com/100/4facfe/ffffff?text=' + person.name.charAt(0); }}
-                                />
-                            ) : (
-                                <div style={styles.placeholderAvatar}>{person.name?.charAt(0)}</div>
-                            )}
-                            {index < 3 && <div style={styles.crown}>{index === 0 ? '👑' : (index === 1 ? '🥈' : '🥉')}</div>}
-                        </div>
-
-                        <div style={styles.info}>
-                            <div style={styles.name}>{person.name}</div>
-                            {/* Added ?. to prevent crash if role is missing */}
-                            <div style={styles.role}>{person.role?.toUpperCase() || 'MEMBER'}</div>
-                        </div>
-
-                        <div style={styles.scoreSection}>
-                            <div style={styles.totalScore}>
-                                {calculateScore(person)}
+                {leaders.length > 0 ? (
+                    leaders.map((person, index) => (
+                        <div key={person.id || index} style={{
+                            ...styles.card,
+                            borderLeft: getRankBorder(index)
+                        }}>
+                            <div style={styles.rank}>#{index + 1}</div>
+                            
+                            <div style={styles.avatarContainer}>
+                                {person.profile_pic ? (
+                                    <img 
+                                        src={person.profile_pic} 
+                                        alt={person.name} 
+                                        style={styles.avatarImg} 
+                                        onError={(e) => { e.target.src = 'https://via.placeholder.com/100/4facfe/ffffff?text=' + person.name.charAt(0); }}
+                                    />
+                                ) : (
+                                    <div style={styles.placeholderAvatar}>{person.name?.charAt(0)}</div>
+                                )}
+                                {index < 3 && <div style={styles.crown}>{index === 0 ? '👑' : (index === 1 ? '🥈' : '🥉')}</div>}
                             </div>
-                            <div style={styles.scoreLabel}>POINTS</div>
+
+                            <div style={styles.info}>
+                                <div style={styles.name}>{person.name}</div>
+                                <div style={styles.role}>{person.role?.toUpperCase() || 'MEMBER'}</div>
+                            </div>
+
+                            <div style={styles.scoreSection}>
+                                <div style={styles.totalScore}>
+                                    {calculateScore(person)}
+                                </div>
+                                <div style={styles.scoreLabel}>POINTS</div>
+                            </div>
                         </div>
+                    ))
+                ) : (
+                    <div style={{textAlign: 'center', color: '#94a3b8', padding: '40px'}}>
+                        No active members found on the leaderboard yet.
                     </div>
-                ))}
+                )}
             </div>
         </div>
     );
@@ -108,7 +113,7 @@ const styles = {
     avatarImg: { width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(255,255,255,0.1)' },
     placeholderAvatar: { width: '100%', height: '100%', borderRadius: '50%', background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '1.5rem', fontWeight: 'bold', color: '#fff' },
     crown: { position: 'absolute', top: '-12px', right: '-8px', fontSize: '1.4rem', filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.5))' },
-    info: { flex: 1, overflow: 'hidden' }, // overflow hidden helps if name is very long
+    info: { flex: 1, overflow: 'hidden' }, 
     name: { color: 'white', fontWeight: '700', fontSize: '1.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
     role: { color: '#94a3b8', fontSize: '0.75rem', letterSpacing: '1.5px', marginTop: '4px', fontWeight: '600' },
     scoreSection: { textAlign: 'right', minWidth: '60px' },
