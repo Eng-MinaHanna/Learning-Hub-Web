@@ -62,17 +62,25 @@
 }
 
 /* =========================================
-   ✅ إضافات صفحة الهبوط (شركاء ورعاة)
+   ✅ إضافات صفحة الهبوط (Sponsors & Partners - Design V2)
    ========================================= */
 
-/* هذا الكلاس بيخلي اللوجو يرجع لألوانه الطبيعية ويكبر شوية لما الماوس يجي عليه */
+/* 1. تأثير الهوفر على الدائرة (الحاوية) */
 .logo-hover-effect:hover {
-    filter: none !important;      /* إلغاء الفلتر (الأبيض والأسود) */
-    opacity: 1 !important;        /* جعل الصورة واضحة تماماً */
-    transform: scale(1.1);        /* تكبير بسيط */
+    border-color: #4facfe !important;       /* ✅ تحويل الإطار من ذهبي لأزرق نيون */
+    background: rgba(255, 255, 255, 0.15) !important; /* زيادة سطوع الزجاج */
+    transform: translateY(-5px) scale(1.05); /* تكبير بسيط ورفع لأعلى */
+    box-shadow: 0 0 25px rgba(79, 172, 254, 0.6); /* ✅ توهج أزرق قوي */
 }
 
-/* تحسين السلاسة */
-.logo-hover-effect {
-    transition: all 0.3s ease-in-out;
+/* 2. تأثير الهوفر على الصورة (اللوجو) داخل الدائرة */
+.logo-hover-effect:hover img {
+    filter: none !important;      /* ✅ إلغاء الفلتر الرمادي (تظهر الألوان الطبيعية) */
+    opacity: 1 !important;        /* وضوح كامل */
+    transform: scale(1.1);        /* تكبير اللوجو نفسه سنة بسيطة */
 }
+
+/* 3. نعومة الحركة لجميع العناصر */
+.logo-hover-effect, .logo-hover-effect img {
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}س
