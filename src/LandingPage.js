@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import API from './api'; // ✅ تم استيراد الـ API
+import API from './api'; 
+import LoadingEffect from './LoadingEffect'; // ✅ 1. استيراد المكون
 
 const LandingPage = ({ onGetStarted, user }) => {
     // ----------------------------------------------------------------
@@ -7,23 +8,27 @@ const LandingPage = ({ onGetStarted, user }) => {
     // ----------------------------------------------------------------
     const [partners, setPartners] = useState([]);
     const [sponsors, setSponsors] = useState([]);
-    const [loading, setLoading] = useState(true);
-    // ✅ 2️⃣ كود جلب البيانات من السيرفر وتشغيله
+    const [loading, setLoading] = useState(true); // ✅ حالة التحميل
+
+    // ✅ 2️⃣ كود جلب البيانات
     useEffect(() => {
         API.get('/public/sponsors')
             .then(res => {
                 const allData = res.data;
-                // فصل البيانات بناءً على النوع المسجل في الداتا بيز
                 setPartners(allData.filter(item => item.type === 'partner'));
                 setSponsors(allData.filter(item => item.type === 'sponsor'));
             })
             .catch(err => {
                 console.error("Failed to fetch sponsors:", err);
+            })
+            .finally(() => {
+                // ✅ 3. لازم نوقف التحميل هنا عشان البيانات تظهر
+                setLoading(false);
             });
     }, []);
 
     return (
-            <div style={styles.container}>
+        <div style={styles.container}>
             <div style={styles.overlay}></div>
             <div style={styles.glow}></div>
 
@@ -87,47 +92,59 @@ const LandingPage = ({ onGetStarted, user }) => {
             </div>
 
             {/* ------------------------------------------------------ */}
-            {/* ✅ 3️⃣ PARTNERS & SPONSORS SECTIONS (Natural Colors) */}
+            {/* ✅ 3️⃣ PARTNERS & SPONSORS SECTIONS (With Loading Effect) */}
             {/* ------------------------------------------------------ */}
             
             {/* Partners Section */}
             <div style={styles.brandsSection}>
                 <h3 style={styles.sectionTitle}>🤝 Our Strategic <span style={{color:'#4facfe'}}>Partners</span></h3>
-                <div style={styles.logosGrid}>
-                    {partners.length > 0 ? partners.map((partner) => (
-                        <a 
-                            key={partner.id} 
-                            href={partner.website_link || '#'} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            style={styles.logoWrapper} 
-                            title={partner.name}
-                            className="logo-hover-effect" // استدعاء تأثير الهوفر من App.css
-                        >
-                            <img src={partner.logo_url} alt={partner.name} style={styles.brandLogo} />
-                        </a>
-                    )) : <p style={{color:'#666'}}>Loading Partners...</p>}
-                </div>
+                
+                {/* ✅ استخدام LoadingEffect هنا */}
+                {loading ? (
+                    <LoadingEffect message="Loading Partners..." />
+                ) : (
+                    <div style={styles.logosGrid}>
+                        {partners.length > 0 ? partners.map((partner) => (
+                            <a 
+                                key={partner.id} 
+                                href={partner.website_link || '#'} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                style={styles.logoWrapper} 
+                                title={partner.name}
+                                className="logo-hover-effect"
+                            >
+                                <img src={partner.logo_url} alt={partner.name} style={styles.brandLogo} />
+                            </a>
+                        )) : <p style={{color:'#666'}}>Wait for our new partners...</p>}
+                    </div>
+                )}
             </div>
 
             {/* Sponsors Section */}
             <div style={{...styles.brandsSection, background: 'linear-gradient(to top, rgba(0,0,0,0.4), transparent)'}}>
                 <h3 style={styles.sectionTitle}>💎 Official <span style={{color:'#00f2fe'}}>Sponsors</span></h3>
-                <div style={styles.logosGrid}>
-                    {sponsors.length > 0 ? sponsors.map((sponsor) => (
-                        <a 
-                            key={sponsor.id} 
-                            href={sponsor.website_link || '#'} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            style={styles.logoWrapper} 
-                            title={sponsor.name}
-                            className="logo-hover-effect"
-                        >
-                            <img src={sponsor.logo_url} alt={sponsor.name} style={styles.brandLogo} />
-                        </a>
-                    )) : <p style={{color:'#666'}}>Loading Sponsors...</p>}
-                </div>
+                
+                {/* ✅ استخدام LoadingEffect هنا */}
+                {loading ? (
+                    <LoadingEffect message="Loading Sponsors..." />
+                ) : (
+                    <div style={styles.logosGrid}>
+                        {sponsors.length > 0 ? sponsors.map((sponsor) => (
+                            <a 
+                                key={sponsor.id} 
+                                href={sponsor.website_link || '#'} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                style={styles.logoWrapper} 
+                                title={sponsor.name}
+                                className="logo-hover-effect"
+                            >
+                                <img src={sponsor.logo_url} alt={sponsor.name} style={styles.brandLogo} />
+                            </a>
+                        )) : <p style={{color:'#666'}}>Wait for our new sponsors...</p>}
+                    </div>
+                )}
             </div>
 
             {/* Footer */}
@@ -140,7 +157,7 @@ const LandingPage = ({ onGetStarted, user }) => {
 };
 
 // ------------------------------------------------------
-// ✅ 4️⃣ STYLES (Updated for Natural Colors)
+// ✅ 4️⃣ STYLES
 // ------------------------------------------------------
 const styles = {
     container: {
@@ -261,7 +278,6 @@ const styles = {
         maxWidth: '100%',
         maxHeight: '100%',
         objectFit: 'contain',
-        // ✅ تم إزالة الفلتر والشفافية لتظهر الألوان الطبيعية
         transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
     },
     
@@ -272,3 +288,5 @@ const styles = {
 };
 
 export default LandingPage;
+
+زرار فتح و غلق النافذه الجانبيه شكله وحش باظ صلحه 
