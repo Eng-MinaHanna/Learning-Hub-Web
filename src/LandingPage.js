@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import API from './api'; // ✅ تم استيراد الـ API
-import LoadingEffect from './LoadingEffect';
 
 const LandingPage = ({ onGetStarted, user }) => {
     // ----------------------------------------------------------------
@@ -24,7 +23,7 @@ const LandingPage = ({ onGetStarted, user }) => {
     }, []);
 
     return (
-        <div style={styles.container}>
+            <div style={styles.container}>
             <div style={styles.overlay}></div>
             <div style={styles.glow}></div>
 
