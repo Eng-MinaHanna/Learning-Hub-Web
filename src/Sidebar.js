@@ -29,9 +29,7 @@ const Sidebar = ({ isOpen, isMobile, user, currentView, onNavigate, onLogout }) 
 
             <nav style={styles.navStack}>
                 {user.role !== 'company' && <NavBtn icon="🏠" label="Home" active={currentView === 'home'} onClick={() => onNavigate('home')} />}
-                
                 <NavBtn icon="💎" label={user.role === 'company' ? "Find Talent (CVs)" : "Top Performances"} active={currentView === 'leaderboard'} onClick={() => onNavigate('leaderboard')} />
-                
                 <NavBtn icon="🎖️" label="Our Team" active={currentView === 'team'} onClick={() => onNavigate('team')} />
 
                 {user.role !== 'company' && (
@@ -42,12 +40,10 @@ const Sidebar = ({ isOpen, isMobile, user, currentView, onNavigate, onLogout }) 
                     </>
                 )}
 
-                {/* ✅ ADMIN SECTION */}
                 {user?.role === 'admin' && (
                     <>
                         <div style={{...styles.divider, margin: '10px 0'}}></div>
                         <span style={{fontSize:'0.75rem', color:'#64748b', paddingLeft:'15px', marginBottom:'5px', fontWeight:'bold'}}>ADMIN CONTROLS</span>
-                        
                         <NavBtn icon="👥" label="Users Management" active={currentView === 'users'} onClick={() => onNavigate('users')} />
                         <NavBtn icon="🤝" label="Sponsors & Partners" active={currentView === 'sponsors'} onClick={() => onNavigate('sponsors')} />
                     </>
@@ -78,20 +74,19 @@ const NavBtn = ({ icon, label, active, onClick }) => (
 );
 
 const styles = {
-  sidebar: { 
-      position: 'fixed', 
-      top: 0, 
-      left: 0, 
-      height: '100vh', 
-      backgroundColor: 'rgba(10, 15, 28, 0.95)', 
-      backdropFilter: 'blur(15px)', 
-      borderRight: '1px solid rgba(255,255,255,0.05)', 
-      display: 'flex', 
-      flexDirection: 'column', 
-      transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)', 
-      zIndex: 1000, 
-      
-      // ✅ حل مشكلة السكرول
-      overflowY: 'auto', 
-      overflowX: 'hidden',
-      overscrollBehavior: 'contain', // يمنع انتقال السكرول للصفحة اللي تحتها (Scroll
+  sidebar: { position: 'fixed', top: 0, left: 0, height: '100vh', backgroundColor: 'rgba(10, 15, 28, 0.95)', backdropFilter: 'blur(15px)', borderRight: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)', zIndex: 1000, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' },
+  brandText: { margin: 0, fontSize: '1.5rem', fontWeight: '900', color: 'white', letterSpacing: '2px' },
+  divider: { height: '1px', background: 'linear-gradient(90deg, transparent, rgba(79,172,254,0.3), transparent)', margin: '15px 0' },
+  userInfo: { display: 'flex', alignItems: 'center', gap: '12px', padding: '15px', margin: '0 20px 30px', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.05)' },
+  avatar: { width: '40px', height: '40px', borderRadius: '12px', background: 'linear-gradient(135deg, #4facfe, #00f2fe)', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', fontSize: '1.1rem', color: '#050810' },
+  avatarImg: { width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' },
+  userName: { fontWeight: 'bold', fontSize: '0.85rem', whiteSpace:'nowrap' },
+  userRole: { fontSize: '10px', color: '#4facfe', textTransform: 'uppercase', letterSpacing: '1px' },
+  navStack: { display: 'flex', flexDirection: 'column', gap: '5px', padding: '0 15px 20px 15px', flex: 1, minHeight: 'min-content' }, 
+  bottomSection: { marginTop: 'auto', paddingTop: '20px', paddingBottom: '40px' },
+  navInactive: { background: 'transparent', color: '#64748b', border: 'none', padding: '12px 15px', borderRadius: '12px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px', transition: '0.2s', fontSize: '0.9rem', width: '100%' },
+  navActive: { background: 'rgba(79, 172, 254, 0.1)', color: '#4facfe', borderRight: '3px solid #4facfe', padding: '12px 15px', borderRadius: '4px 12px 12px 4px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px', width: '100%' },
+  logoutBtn: { marginTop: '10px', background: 'rgba(239, 68, 68, 0.05)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.1)', padding: '10px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', fontSize:'0.8rem', width: '100%' }
+};
+
+export default Sidebar;
