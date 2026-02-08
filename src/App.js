@@ -34,7 +34,7 @@ function App() {
   const [progressData, setProgressData] = useState({});
   const [unreadCount, setUnreadCount] = useState(0);
   const [showAuth, setShowAuth] = useState(false);
-  const [loading, setLoading] = useState(true); // نتركها True في البداية
+  const [loading, setLoading] = useState(false); 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
 
@@ -53,7 +53,7 @@ function App() {
     if (isMobile) setIsSidebarOpen(false);
   }, [currentView, isMobile]);
 
-  // ✅ 1. تعريف الدوال الأساسية
+  // ✅ تعريف الدوال المفقودة اللي كانت بتبوظ الـ Build
   const handleOpenCourse = (course) => { 
     setSelectedCourse(course); 
     localStorage.setItem('activeCourseId', course?.id); 
@@ -67,10 +67,8 @@ function App() {
 
   const handleDelete = async (id) => {
     if (window.confirm("⚠️ Confirm Delete?")) {
-      try { 
-        await API.delete(`/activities/delete/${id}`); 
-        fetchData(); 
-      } catch (err) { alert("Error deleting"); }
+      try { await API.delete(`/activities/delete/${id}`); fetchData(); } 
+      catch (err) { alert("Error deleting"); }
     }
   };
 
@@ -79,81 +77,49 @@ function App() {
     try {
       const res = await API.get(`/notifications/${user.id}`);
       setUnreadCount(Array.isArray(res.data) ? res.data.filter(n => !n.is_read).length : 0);
-    } catch (e) { console.error("Notify Error"); }
+    } catch (e) { }
   };
 
-  // ✅ 2. دالة جلب البيانات الموحدة (Pre-fetching)
+  // ✅ جلب البيانات بترتيب (عشان السيرفر ميبوظش)
   const fetchData = async () => {
-    setLoading(true); 
+    if (activities.length === 0) setLoading(true); 
     try {
-      // جلب الأنشطة
       const actsRes = await API.get('/activities/all');
       const data = Array.isArray(actsRes.data) ? actsRes.data : [];
       setActivities(data);
 
-      const criticalRequests = [];
+      // حساب الأرقام فوراً
       const totalTracks = data.length;
       const totalWorkshops = data.filter(a => a.type?.toLowerCase() === 'workshop').length;
 
-      // جلب الإحصائيات للأدمن أو تعيين افتراضي للطلاب
       if (user?.role === 'admin') {
-        criticalRequests.push(
-          API.get('/stats').then(res => {
-            setStats({
-              total_activities: totalTracks,
-              total_workshops: totalWorkshops,
-              total_students: res.data?.total_students || 0
-            });
-          })
-        );
+        const res = await API.get('/stats');
+        setStats({ total_activities: totalTracks, total_workshops: totalWorkshops, total_students: res.data?.total_students || 0 });
       } else {
         setStats({ total_activities: totalTracks, total_workshops: totalWorkshops, total_students: '150+' });
       }
 
-      // جلب التقدم لكل تراك
       if (user?.email && user.role !== 'company') {
-        const progressPromises = data.map(course => 
-          API.get(`/progress/calculate/${course.id}/${user.email}`)
-            .then(res => ({id: course.id, val: res.data?.percent || 0}))
-            .catch(() => ({id: course.id, val: 0}))
+        const promises = data.map(course => 
+           API.get(`/progress/calculate/${course.id}/${user.email}`)
+             .then(res => ({id: course.id, val: res.data?.percent || 0}))
+             .catch(()=> ({id: course.id, val: 0}))
         );
-        criticalRequests.push(
-          Promise.all(progressPromises).then(results => {
-            const newProgress = {};
-            results.forEach(r => { newProgress[r.id] = r.val });
-            setProgressData(newProgress);
-          })
-        );
-        criticalRequests.push(checkNotifications());
+        const results = await Promise.all(promises);
+        const newProgress = {};
+        results.forEach(r => { newProgress[r.id] = r.val });
+        setProgressData(newProgress);
+        checkNotifications();
       }
-
-      await Promise.all(criticalRequests);
-    } catch (err) {
-      console.error("Global Fetch Error", err);
-    } finally {
-      // إخفاء شاشة التحميل بعد الانتهاء
-      setTimeout(() => setLoading(false), 800);
-    }
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => { 
-    if (user) {
-        fetchData(); 
-    } else {
-        setLoading(false); // إذا لم يكن هناك مستخدم، نفتح الصفحة الرئيسية فوراً
-    }
-  }, [user?.id]);
+  useEffect(() => { if (user) fetchData(); }, [user?.id]);
 
   const handleLogout = () => { setUser(null); localStorage.clear(); setCurrentView('home'); };
 
-  const handleUserUpdate = (updatedData) => {
-    const newUser = { ...user, ...updatedData };
-    setUser(newUser);
-    localStorage.setItem('ieee_user', JSON.stringify(newUser));
-  };
-
-  // ✅ 3. شاشة تسجيل الدخول أو الصفحة التعريفية
-  if (!user && !loading) {
+  if (!user) {
     return (
       <div style={styles.appContainer}>
         <div style={styles.backgroundGrid}></div>
@@ -162,11 +128,10 @@ function App() {
     );
   }
 
-  // ✅ 4. شاشة التحميل الموحدة
-  if (loading) {
+  if (loading && activities.length === 0) {
       return (
           <div style={styles.loadingContainer}>
-              <LoadingEffect message="SYNCING WITH IEEE HUB..." />
+              <LoadingEffect message="SYNCING DATA..." />
           </div>
       );
   }
@@ -174,10 +139,7 @@ function App() {
   return (
     <div style={styles.appContainer}>
       <div style={styles.backgroundGrid}></div>
-      <button 
-        onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
-        style={{...styles.toggleBtn, left: (isSidebarOpen && !isMobile) ? '290px' : '20px'}}
-      >
+      <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={{...styles.toggleBtn, left: (isSidebarOpen && !isMobile) ? '290px' : '20px'}}>
         {isSidebarOpen ? '✕' : '☰'}
       </button>
 
@@ -187,12 +149,8 @@ function App() {
         <main style={{ ...styles.mainArea, marginLeft: (isSidebarOpen && !isMobile) ? '280px' : '0px', width: (isSidebarOpen && !isMobile) ? 'calc(100% - 280px)' : '100%' }}>
           <div style={styles.pageHeader}>
              {currentView === 'dashboard' && !selectedCourse && user.role !== 'company' && (
-                <div>
-                   <h1 style={styles.welcomeText}>Hello, {user?.name?.split(' ')[0]}! ⚡</h1>
-                   <p style={{color: '#64748b', marginTop: '5px'}}>Everything is ready for your growth.</p>
-                </div>
+                <h1 style={styles.welcomeText}>Hello, {user?.name?.split(' ')[0]}! ⚡</h1>
              )}
-             {user.role === 'company' && currentView === 'leaderboard' && <h1 style={styles.welcomeText}>Welcome, {user.name} 👋</h1>}
              {currentView === 'dashboard' && !selectedCourse && (
                <div style={styles.searchContainer}>
                   <input placeholder="Search tracks..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={styles.searchInput} />
@@ -228,7 +186,7 @@ function App() {
                           <div style={styles.progressText}>Progress: {progressData[act.id] || 0}%</div>
                           <div style={styles.barBg}><div style={{...styles.barFill, width: `${progressData[act.id] || 0}%`}}></div></div>
                       </div>
-                      <button onClick={() => handleOpenCourse(act)} style={styles.continueBtn}>Continue Learning ▶️</button>
+                      <button onClick={() => handleOpenCourse(act)} style={styles.continueBtn}>Continue ▶️</button>
                     </div>
                   </div>
                 ))}
@@ -243,7 +201,7 @@ function App() {
           {currentView === 'users' && <AdminUsersView currentUser={user} />}
           {currentView === 'community' && <CommunityView />}
           {currentView === 'sponsors' && user.role === 'admin' && <SponsorsPartnersBoard />}
-          {currentView === 'settings' && <SettingsView user={user} onUpdateUser={handleUserUpdate} />}
+          {currentView === 'settings' && <SettingsView user={user} onUpdateUser={(u)=>setUser({...user,...u})} />}
         </main>
       </div>
 
@@ -258,7 +216,6 @@ function App() {
   );
 }
 
-// ✅ مكون الإحصائيات (Stat Card)
 const DashboardCard = ({ title, value, icon, color }) => (
   <div style={{ ...styles.statCard, borderBottom: `3px solid ${color}` }}>
     <div style={{ ...styles.iconCircle, backgroundColor: `${color}15`, color: color }}>{icon}</div>
@@ -269,7 +226,6 @@ const DashboardCard = ({ title, value, icon, color }) => (
   </div>
 );
 
-// ✅ مكون فريق العمل
 const TeamView = () => {
     const [team, setTeam] = useState([]);
     useEffect(() => { API.get('/team').then(res => setTeam(res.data)).catch(() => {}); }, []);
@@ -280,10 +236,10 @@ const TeamView = () => {
                 {team.map((m, i) => (
                     <div key={i} style={{background: 'rgba(30, 41, 59, 0.4)', padding: '25px', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.05)'}}>
                         <div style={{width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', margin: '0 auto 15px', border: `3px solid #4facfe`}}>
-                            {m.profile_pic ? <img src={m.profile_pic} style={{width: '100%', height: '100%', objectFit: 'cover'}} alt="P" /> : <div style={{width:'100%', height:'100%', background:'#333', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'2rem'}}>{m.name.charAt(0)}</div>}
+                            {m.profile_pic ? <img src={m.profile_pic} style={{width: '100%', height: '100%', objectFit: 'cover'}} alt="P" /> : <div style={{width:'100%', height:'100%', background:'#333', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'2rem'}}>{m.name?.charAt(0)}</div>}
                         </div>
                         <h3 style={{margin: '0 0 5px 0', color: 'white', fontSize: '1.1rem'}}>{m.name}</h3>
-                        <span style={{fontSize: '0.75rem', color: '#4facfe', background: 'rgba(79, 172, 254, 0.1)', padding: '4px 12px', borderRadius: '20px', fontWeight: 'bold'}}>{m.role.toUpperCase()}</span>
+                        <span style={{fontSize: '0.75rem', color: '#4facfe', background: 'rgba(79, 172, 254, 0.1)', padding: '4px 12px', borderRadius: '20px', fontWeight: 'bold'}}>{m.role?.toUpperCase()}</span>
                     </div>
                 ))}
             </div>
