@@ -16,6 +16,7 @@ import LeaderboardView from './LeaderboardView';
 import Sidebar from './Sidebar';
 import LoadingEffect from './LoadingEffect';
 
+
 function App() {
   const [user, setUser] = useState(() => {
     try {
