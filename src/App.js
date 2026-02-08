@@ -81,10 +81,12 @@ function App() {
     } catch (e) { }
   };
 
- const fetchData = async () => {
+  const fetchData = async () => {
+    // 🔥 تحسين: لا تظهر التحميل إذا كانت البيانات موجودة فعلاً (عند الرجوع من كورس)
     if (activities.length === 0) setLoading(true); 
     setSyncError(false);
 
+    // 🕒 إعداد تايم أوت (المهلة الزمنية) لمدة 15 ثانية
     const timeoutId = setTimeout(() => {
         if (activities.length === 0) { 
             setSyncError(true);
@@ -93,14 +95,14 @@ function App() {
     }, 15000); 
 
     try {
-      // ✅ تعديل مهم: حماية الطلبات الفردية باستخدام .catch
+      // ✅ تعديل: حماية الطلبات الفردية باستخدام .catch لضمان عدم تعليق الـ Promise.all
       const [actsRes, statsRes] = await Promise.all([
         API.get('/activities/all').catch(() => ({ data: [] })),
         (user?.role === 'admin' ? API.get('/stats').catch(() => ({ data: { total_students: 0 } })) : Promise.resolve({ data: null })),
         checkNotifications().catch(() => {})
       ]);
 
-      clearTimeout(timeoutId);
+      clearTimeout(timeoutId); // إلغاء المهلة لو الداتا جت
 
       const data = Array.isArray(actsRes.data) ? actsRes.data : [];
       setActivities(data);
@@ -122,20 +124,17 @@ function App() {
 
       if (user?.email && user.role !== 'company' && data.length > 0) {
         const progressPromises = data.map(course => 
-           API.get(`/progress/calculate/${course.id}/${user.email}`)
-             .then(res => ({id: course.id, val: res.data?.percent || 0}))
-             .catch(() => ({id: course.id, val: 0}))
+           API.get(`/progress/calculate/${course.id}/${user.email}`).catch(() => ({ data: { percent: 0 } }))
         );
         Promise.all(progressPromises).then(results => {
           const newProgress = {};
-          results.forEach(r => { newProgress[r.id] = r.val });
+          results.forEach((r, idx) => { newProgress[data[idx].id] = r.data?.percent || 0 });
           setProgressData(newProgress);
         }).catch(() => {});
       }
 
     } catch (err) {
       console.error("Global Fetch Error", err);
-      // لو الأنشطة مجاتش خالص بس هو اللي نطلع إيرور
       if (activities.length === 0) setSyncError(true);
     } finally {
       if (activities.length > 0) setLoading(false);
@@ -160,17 +159,19 @@ function App() {
     );
   }
 
+  // 🛠️ نافذة الخطأ أو الصيانة الجديدة
   if (syncError) {
       return (
           <div style={styles.loadingContainer}>
               <div style={styles.errorBox}>
                   <h2 style={{color: '#ff4d4d'}}>⚠️ Connection Timeout</h2>
-                  <p style={{margin: '15px 0', color: '#94a3b8'}}>
-                    The server is taking too long to respond. There might be a maintenance or network issue.
+                  <p style={{margin: '15px 0', color: '#94a3b8', lineHeight: '1.6'}}>
+                    في حاليا مشكله أو صيانة، يرجى الانتظار أو الرجوع إلى الـ <b>Officers</b> إذا استمرت المشكلة.
                   </p>
-                  <p style={{fontSize: '0.9rem', color: '#64748b'}}>Please wait a moment or contact our <b>IEEE Officers</b> if the issue persists.</p>
-                  <button onClick={() => fetchData()} style={styles.continueBtn}>🔄 Retry Now</button>
-                  <button onClick={handleLogout} style={{...styles.continueBtn, background: 'transparent', color: '#fff', border: '1px solid #444', marginTop: '10px'}}>Logout</button>
+                  <div style={{display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '20px'}}>
+                      <button onClick={() => window.location.reload()} style={styles.continueBtn}>🔄 Retry Now</button>
+                      <button onClick={handleLogout} style={{...styles.continueBtn, background: 'transparent', color: '#fff', border: '1px solid #444'}}>Logout</button>
+                  </div>
               </div>
           </div>
       );
