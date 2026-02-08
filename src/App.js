@@ -62,6 +62,7 @@ function App() {
   const handleCloseCourse = () => {
     setSelectedCourse(null);
     localStorage.removeItem('activeCourseId'); 
+    // ننادي fetchData لكنها لن تغلق الشاشة لأن الداتا موجودة فعلاً
     fetchData();
   };
 
@@ -81,36 +82,40 @@ function App() {
   };
 
   const fetchData = async () => {
-    setLoading(true); 
+    // 1. منطق ذكي: لو الداتا موجودة (activities)، لا تظهر شاشة التحميل الكبيرة
+    if (activities.length === 0) setLoading(true); 
     setSyncError(false);
 
-    // 🕒 إعداد تايم أوت لمدة 10 ثواني
+    // 🕒 إعداد تايم أوت لمدة 12 ثانية
     const timeoutId = setTimeout(() => {
-        setSyncError(true);
-        setLoading(false);
-    }, 10000); 
+        if (activities.length === 0) { // فقط لو الموقع لسه "أبيض" نظهر نافذة الخطأ
+            setSyncError(true);
+            setLoading(false);
+        }
+    }, 12000); 
 
     try {
-      const [actsRes, statsRes] = await Promise.all([
-        API.get('/activities/all').catch(() => ({ data: [] })),
-        (user?.role === 'admin' ? API.get('/stats') : Promise.resolve({ data: null })).catch(() => ({ data: null })),
-        checkNotifications()
-      ]);
-
-      clearTimeout(timeoutId); // إلغاء التايم أوت لو الداتا جت بسرعة
-
+      // 2. جلب الأنشطة فوراً (الأساس)
+      const actsRes = await API.get('/activities/all');
       const data = Array.isArray(actsRes.data) ? actsRes.data : [];
       setActivities(data);
+      
+      // بمجرد ما الأنشطة توصل، نلغي شاشة التحميل فوراً
+      setLoading(false);
+      clearTimeout(timeoutId);
 
+      // 3. تحديث باقي البيانات في الخلفية (Background) بدون تعطيل اليوزر
       const totalTracks = data.length;
       const totalWorkshops = data.filter(a => a.type?.toLowerCase() === 'workshop').length;
 
-      if (user?.role === 'admin' && statsRes.data) {
-        setStats({
-          total_activities: totalTracks,
-          total_workshops: totalWorkshops,
-          total_students: statsRes.data.total_students || 0
-        });
+      if (user?.role === 'admin') {
+        API.get('/stats').then(res => {
+          setStats({
+            total_activities: totalTracks,
+            total_workshops: totalWorkshops,
+            total_students: res.data?.total_students || 0
+          });
+        }).catch(() => {});
       } else {
         setStats({ total_activities: totalTracks, total_workshops: totalWorkshops, total_students: '150+' });
       }
@@ -121,17 +126,20 @@ function App() {
              .then(res => ({id: course.id, val: res.data?.percent || 0}))
              .catch(() => ({id: course.id, val: 0}))
         );
-        const results = await Promise.all(progressPromises);
-        const newProgress = {};
-        results.forEach(r => { newProgress[r.id] = r.val });
-        setProgressData(newProgress);
+        Promise.all(progressPromises).then(results => {
+          const newProgress = {};
+          results.forEach(r => { newProgress[r.id] = r.val });
+          setProgressData(newProgress);
+        }).catch(() => {});
       }
+      
+      checkNotifications();
 
     } catch (err) {
       console.error("Global Fetch Error", err);
-      setSyncError(true);
+      if (activities.length === 0) setSyncError(true);
     } finally {
-      setLoading(false);
+      if (activities.length > 0) setLoading(false);
     }
   };
 
@@ -142,7 +150,8 @@ function App() {
 
   const handleLogout = () => { setUser(null); localStorage.clear(); setCurrentView('home'); };
 
-  // 1. شاشة تسجيل الدخول
+  // --- التحكم في واجهة المستخدم (Views) ---
+
   if (!user && !loading) {
     return (
       <div style={styles.appContainer}>
@@ -152,7 +161,6 @@ function App() {
     );
   }
 
-  // 2. نافذة الخطأ في حالة فشل المزامنة (Timeout)
   if (syncError) {
       return (
           <div style={styles.loadingContainer}>
@@ -162,14 +170,13 @@ function App() {
                     The server is taking too long to respond. There might be a maintenance or network issue.
                   </p>
                   <p style={{fontSize: '0.9rem', color: '#64748b'}}>Please wait a moment or contact our <b>IEEE Officers</b> if the issue persists.</p>
-                  <button onClick={() => window.location.reload()} style={styles.continueBtn}>🔄 Retry Now</button>
+                  <button onClick={() => fetchData()} style={styles.continueBtn}>🔄 Retry Now</button>
                   <button onClick={handleLogout} style={{...styles.continueBtn, background: 'transparent', color: '#fff', border: '1px solid #444', marginTop: '10px'}}>Logout</button>
               </div>
           </div>
       );
   }
 
-  // 3. شاشة التحميل العادية
   if (loading) {
       return (
           <div style={styles.loadingContainer}>
