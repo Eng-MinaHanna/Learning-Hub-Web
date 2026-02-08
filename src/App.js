@@ -34,7 +34,8 @@ function App() {
   const [progressData, setProgressData] = useState({});
   const [unreadCount, setUnreadCount] = useState(0);
   const [showAuth, setShowAuth] = useState(false);
-  const [loading, setLoading] = useState(true); // نتركها True لضمان عدم ظهور محتوى فارغ
+  const [loading, setLoading] = useState(true); 
+  const [syncError, setSyncError] = useState(false); // حالة جديدة للخطأ في المزامنة
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
 
@@ -79,16 +80,24 @@ function App() {
     } catch (e) { }
   };
 
-  // ✅ جلب البيانات الموحد (تم تحسينه للسرعة القصوى)
   const fetchData = async () => {
     setLoading(true); 
+    setSyncError(false);
+
+    // 🕒 إعداد تايم أوت لمدة 10 ثواني
+    const timeoutId = setTimeout(() => {
+        setSyncError(true);
+        setLoading(false);
+    }, 10000); 
+
     try {
-      // 1. طلب الأنشطة، الإحصائيات، والتنبيهات "معاً" في نفس اللحظة (Parallel)
       const [actsRes, statsRes] = await Promise.all([
         API.get('/activities/all').catch(() => ({ data: [] })),
         (user?.role === 'admin' ? API.get('/stats') : Promise.resolve({ data: null })).catch(() => ({ data: null })),
         checkNotifications()
       ]);
+
+      clearTimeout(timeoutId); // إلغاء التايم أوت لو الداتا جت بسرعة
 
       const data = Array.isArray(actsRes.data) ? actsRes.data : [];
       setActivities(data);
@@ -96,7 +105,6 @@ function App() {
       const totalTracks = data.length;
       const totalWorkshops = data.filter(a => a.type?.toLowerCase() === 'workshop').length;
 
-      // 2. تعيين الإحصائيات (إما من السيرفر للأدمن أو حسابية للطلاب)
       if (user?.role === 'admin' && statsRes.data) {
         setStats({
           total_activities: totalTracks,
@@ -107,7 +115,6 @@ function App() {
         setStats({ total_activities: totalTracks, total_workshops: totalWorkshops, total_students: '150+' });
       }
 
-      // 3. طلبات البروجرس لكل الكورسات "معاً" (Parallel)
       if (user?.email && user.role !== 'company' && data.length > 0) {
         const progressPromises = data.map(course => 
            API.get(`/progress/calculate/${course.id}/${user.email}`)
@@ -122,9 +129,9 @@ function App() {
 
     } catch (err) {
       console.error("Global Fetch Error", err);
+      setSyncError(true);
     } finally {
-      // 🚀 الموقع جاهز الآن بنسبة 100%
-      setTimeout(() => setLoading(false), 500); 
+      setLoading(false);
     }
   };
 
@@ -135,6 +142,7 @@ function App() {
 
   const handleLogout = () => { setUser(null); localStorage.clear(); setCurrentView('home'); };
 
+  // 1. شاشة تسجيل الدخول
   if (!user && !loading) {
     return (
       <div style={styles.appContainer}>
@@ -144,6 +152,24 @@ function App() {
     );
   }
 
+  // 2. نافذة الخطأ في حالة فشل المزامنة (Timeout)
+  if (syncError) {
+      return (
+          <div style={styles.loadingContainer}>
+              <div style={styles.errorBox}>
+                  <h2 style={{color: '#ff4d4d'}}>⚠️ Connection Timeout</h2>
+                  <p style={{margin: '15px 0', color: '#94a3b8'}}>
+                    The server is taking too long to respond. There might be a maintenance or network issue.
+                  </p>
+                  <p style={{fontSize: '0.9rem', color: '#64748b'}}>Please wait a moment or contact our <b>IEEE Officers</b> if the issue persists.</p>
+                  <button onClick={() => window.location.reload()} style={styles.continueBtn}>🔄 Retry Now</button>
+                  <button onClick={handleLogout} style={{...styles.continueBtn, background: 'transparent', color: '#fff', border: '1px solid #444', marginTop: '10px'}}>Logout</button>
+              </div>
+          </div>
+      );
+  }
+
+  // 3. شاشة التحميل العادية
   if (loading) {
       return (
           <div style={styles.loadingContainer}>
@@ -266,7 +292,8 @@ const TeamView = () => {
 const styles = {
   appContainer: { fontFamily: "'Cairo', sans-serif", backgroundColor: '#050810', color: 'white', minHeight: '100vh', position: 'relative', overflowX: 'hidden' },
   backgroundGrid: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundImage: 'radial-gradient(rgba(79, 172, 254, 0.03) 2px, transparent 2px)', backgroundSize: '50px 50px', zIndex: 0 },
-  loadingContainer: { position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: '#050810', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
+  loadingContainer: { position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: '#050810', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '20px', textAlign: 'center' },
+  errorBox: { background: 'rgba(15, 23, 42, 0.8)', padding: '40px', borderRadius: '30px', border: '1px solid rgba(255,255,255,0.1)', maxWidth: '500px', backdropFilter: 'blur(10px)' },
   mainArea: { padding: '40px 20px', transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)', position: 'relative', zIndex: 1, minHeight: '100vh' },
   pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', flexWrap: 'wrap', gap: '20px', paddingLeft: '70px', paddingTop: '10px' },
   welcomeText: { color: 'white', margin: 0, fontSize: '1.6rem', fontWeight: '800' },
