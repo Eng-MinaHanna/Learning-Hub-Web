@@ -2,176 +2,60 @@ import React, { useState } from 'react';
 import API from './api';
 
 const SettingsView = ({ user, onUpdateUser }) => {
-    const [formData, setFormData] = useState({
-        name: user.name,
-        email: user.email,
-        phone: user.phone || '',
-        oldPassword: '',
-        newPassword: ''
-    });
-    const [avatar, setAvatar] = useState(null);
+  const [formData, setFormData] = useState({
+      name: user.name || '', email: user.email || '', phone: user.phone || '',
+      oldPassword: '', newPassword: '', 
+      linkedin: user.linkedin || '', cv_link: user.cv_link || '', job_title: user.job_title || ''
+  });
+  const [avatar, setAvatar] = useState(null);
 
-    // ✅ التعديل الأول: الصورة دلوقت لينك كامل من Cloudinary فمش محتاجين SERVER_URL
-    const [preview, setPreview] = useState(user.profile_pic || null);
-    const [loading, setLoading] = useState(false);
+  const handleSubmit = async (e) => {
+      e.preventDefault();
+      const data = new FormData();
+      Object.keys(formData).forEach(key => data.append(key, formData[key]));
+      data.append('id', user.id);
+      if (avatar) data.append('avatar', avatar);
 
-    const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
+      try {
+          const res = await API.put('/user/update', data);
+          if (res.data.status === 'Success') {
+              alert("Profile Updated! ✅");
+              onUpdateUser({ ...formData, profile_pic: res.data.newProfilePic || user.profile_pic });
+          } else { alert(res.data.message || "Failed"); }
+      } catch (e) { alert("Error updating"); }
+  };
 
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            setAvatar(file);
-            // ده للعرض المؤقت قبل الرفع
-            setPreview(URL.createObjectURL(file));
-        }
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-
-        const data = new FormData();
-        data.append('id', user.id);
-        data.append('name', formData.name);
-        data.append('email', formData.email);
-        data.append('oldPassword', formData.oldPassword);
-        data.append('newPassword', formData.newPassword);
-        data.append('phone', formData.phone);
-        if (avatar) data.append('avatar', avatar);
-
-        try {
-            // ✅ التعديل الثاني: السنترال (api.js) اللي عملناه بيضيف التوكن أوتوماتيك
-            // لو إنت ضفت الـ Interceptor في api.js مش محتاج الـ headers هنا، بس هنخليها للأمان
-            const token = localStorage.getItem('ieee_token');
-
-            const res = await API.put('/user/update', data, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'multipart/form-data'
-                }
-            });
-
-            if (res.data.status === "Success") {
-                alert("✅ Profile Updated Successfully!");
-
-                // التعديل الثالث: نأخذ اللينك الجديد اللي راجع من Cloudinary
-                const updatedUser = {
-                    ...user,
-                    name: formData.name,
-                    email: formData.email,
-                    phone: formData.phone,
-                    profile_pic: res.data.newProfilePic || user.profile_pic
-                };
-
-                localStorage.setItem('ieee_user', JSON.stringify(updatedUser));
-                onUpdateUser(updatedUser);
-
-                // تصفير خانات الباسورد بعد النجاح
-                setFormData(prev => ({ ...prev, oldPassword: '', newPassword: '' }));
-            } else {
-                alert("❌ " + res.data.message);
-            }
-        } catch (err) {
-            console.error(err);
-            const errorMsg = err.response?.data?.message || "Check your internet or server";
-            alert("❌ Error: " + errorMsg);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div style={styles.container}>
-            <h2 style={styles.header}>⚙️ Account Settings</h2>
-
-            <div style={styles.card}>
-                <div style={styles.avatarSection}>
-                    <div style={styles.imageWrapper}>
-                        {preview ? (
-                            <img src={preview} alt="Profile" style={styles.profileImg} />
-                        ) : (
-                            <div style={styles.placeholderAvatar}>{user.name?.charAt(0)}</div>
-                        )}
-                        <label style={styles.cameraIcon}>
-                            📷
-                            <input type="file" onChange={handleFileChange} style={{ display: 'none' }} accept="image/*" />
-                        </label>
-                    </div>
-                    <p style={{ color: '#aaa', fontSize: '0.9rem', marginTop: '10px' }}>Click icon to change photo</p>
-                </div>
-
-                <form onSubmit={handleSubmit} style={styles.form}>
-                    <div style={styles.inputGroup}>
-                        <label style={styles.label}>Full Name</label>
-                        <input name="name" value={formData.name} onChange={handleChange} style={styles.input} />
-                    </div>
-
-                    <div style={styles.inputGroup}>
-                        <label style={styles.label}>Email Address</label>
-                        <input name="email" value={formData.email} onChange={handleChange} style={styles.input} type="email" />
-                    </div>
-
-                    <div style={styles.inputGroup}>
-                        <label style={styles.label}>Phone Number</label>
-                        <input name="phone" value={formData.phone} onChange={handleChange} style={styles.input} type="tel" />
-                    </div>
-
-                    <hr style={styles.divider} />
-                    <h3 style={{ color: '#4facfe', margin: '10px 0 20px' }}>🔒 Change Password</h3>
-
-                    <div style={styles.inputGroup}>
-                        <label style={styles.label}>Current Password</label>
-                        <input
-                            name="oldPassword"
-                            value={formData.oldPassword}
-                            onChange={handleChange}
-                            style={styles.input}
-                            type="password"
-                            placeholder="Type current password"
-                            autoComplete="current-password"
-                        />
-                    </div>
-
-                    <div style={styles.inputGroup}>
-                        <label style={styles.label}>New Password</label>
-                        <input
-                            name="newPassword"
-                            value={formData.newPassword}
-                            onChange={handleChange}
-                            style={styles.input}
-                            type="password"
-                            placeholder="Enter new password"
-                            autoComplete="new-password"
-                        />
-                    </div>
-
-                    <button type="submit" style={styles.saveBtn} disabled={loading}>
-                        {loading ? "Saving..." : "💾 Save Changes"}
-                    </button>
-                </form>
-            </div>
-        </div>
-    );
+  return (
+      <div style={{ maxWidth: '600px', margin: '0 auto', background: 'rgba(30, 41, 59, 0.5)', padding: '30px', borderRadius: '20px' }}>
+          <h2 style={{ color: '#4facfe', marginBottom: '20px' }}>⚙️ Profile Settings</h2>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <div style={{textAlign:'center', marginBottom:'10px'}}>
+                  <div style={{width:'80px', height:'80px', borderRadius:'50%', overflow:'hidden', margin:'0 auto', border:'2px solid #4facfe'}}>
+                      {avatar ? <img src={URL.createObjectURL(avatar)} style={{width:'100%', height:'100%', objectFit:'cover'}} alt="P"/> : <img src={user.profile_pic} style={{width:'100%', height:'100%', objectFit:'cover'}} alt="P"/>}
+                  </div>
+                  <input type="file" onChange={e => setAvatar(e.target.files[0])} style={{marginTop:'10px', fontSize:'0.8rem'}} />
+              </div>
+              <input placeholder="Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} style={styles.sidebarInput} />
+              
+              {/* حقول التميز */}
+              <input placeholder="Job Title (e.g. React Developer)" value={formData.job_title} onChange={e => setFormData({...formData, job_title: e.target.value})} style={styles.sidebarInput} />
+              <input placeholder="LinkedIn Profile URL" value={formData.linkedin} onChange={e => setFormData({...formData, linkedin: e.target.value})} style={styles.sidebarInput} />
+              <input placeholder="CV / Portfolio Link" value={formData.cv_link} onChange={e => setFormData({...formData, cv_link: e.target.value})} style={styles.sidebarInput} />
+              
+              <input placeholder="Email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} style={styles.sidebarInput} disabled />
+              <input placeholder="Phone" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} style={styles.sidebarInput} />
+              <hr style={{borderColor:'rgba(255,255,255,0.1)', width:'100%'}}/>
+              <input type="password" placeholder="Old Password" value={formData.oldPassword} onChange={e => setFormData({...formData, oldPassword: e.target.value})} style={styles.sidebarInput} />
+              <input type="password" placeholder="New Password" value={formData.newPassword} onChange={e => setFormData({...formData, newPassword: e.target.value})} style={styles.sidebarInput} />
+              <button type="submit" style={styles.continueBtn}>Update Profile</button>
+          </form>
+      </div>
+  );
 };
 
-// ... الـ Styles كما هي ...
 const styles = {
-    container: { maxWidth: '800px', margin: '0 auto', paddingBottom: '50px' },
-    header: { color: 'white', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '15px', marginBottom: '30px' },
-    card: { backgroundColor: 'rgba(30, 41, 59, 0.6)', padding: '40px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', gap: '40px', flexWrap: 'wrap' },
-    avatarSection: { flex: 1, minWidth: '250px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid rgba(255,255,255,0.05)' },
-    imageWrapper: { position: 'relative', width: '150px', height: '150px' },
-    profileImg: { width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '4px solid #4facfe' },
-    placeholderAvatar: { width: '100%', height: '100%', borderRadius: '50%', background: 'linear-gradient(135deg, #4facfe, #00f2fe)', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '3rem', fontWeight: 'bold', color: '#0f172a' },
-    cameraIcon: { position: 'absolute', bottom: '5px', right: '5px', background: '#1e293b', padding: '8px', borderRadius: '50%', cursor: 'pointer', border: '2px solid #4facfe', fontSize: '1.2rem' },
-    form: { flex: 2, minWidth: '300px' },
-    inputGroup: { marginBottom: '20px' },
-    label: { display: 'block', color: '#94a3b8', marginBottom: '8px', fontSize: '0.9rem' },
-    input: { width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.2)', color: 'white', outline: 'none', transition: '0.3s' },
-    divider: { border: '0', borderTop: '1px solid rgba(255,255,255,0.1)', margin: '30px 0' },
-    saveBtn: { width: '100%', padding: '15px', background: 'linear-gradient(90deg, #4facfe, #00f2fe)', border: 'none', borderRadius: '10px', color: 'white', fontWeight: 'bold', cursor: 'pointer', fontSize: '1rem', marginTop: '10px' }
+    sidebarInput: { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', outline: 'none' },
+    continueBtn: { width: '100%', padding: '14px', borderRadius: '14px', border: 'none', background: 'linear-gradient(90deg, #4facfe, #00f2fe)', color: '#050810', fontWeight: '900', cursor: 'pointer', transition: '0.3s' },
 };
 
 export default SettingsView;
