@@ -1,29 +1,27 @@
 import React, { useState, useEffect } from 'react';
-// import API from './api'; // 👈 سنحتاج هذا لاحقاً لجلب البيانات الحقيقية
+import API from './api'; // ✅ تم استيراد الـ API
 
 const LandingPage = ({ onGetStarted, user }) => {
     // ----------------------------------------------------------------
-    // 1️⃣ إعداد البيانات (هنا بيانات وهمية مؤقتاً لحد ما تربطها بالباك إند)
+    // 1️⃣ إعداد البيانات (يتم جلبها الآن من الداتا بيز)
     // ----------------------------------------------------------------
-    const [partners, setPartners] = useState([
-        { id: 1, name: "Partner 1", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/1200px-Google_2015_logo.svg.png" },
-        { id: 2, name: "Partner 2", logo: "https://upload.wikimedia.org/wikipedia/commons/5/51/IBM_logo.svg" },
-        { id: 3, name: "Partner 3", logo: "https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg" },
-    ]);
+    const [partners, setPartners] = useState([]);
+    const [sponsors, setSponsors] = useState([]);
 
-    const [sponsors, setSponsors] = useState([
-        { id: 1, name: "Sponsor A", logo: "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg" },
-        { id: 2, name: "Sponsor B", logo: "https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg" },
-        { id: 3, name: "Sponsor C", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Octicons-mark-github.svg/2048px-Octicons-mark-github.svg.png" },
-        { id: 4, name: "Sponsor D", logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Slack_icon_2019.svg/2048px-Slack_icon_2019.svg.png" },
-    ]);
-
-    /* // ✅ 2️⃣ كود جلب البيانات من السيرفر (يتم تفعيله لما الباك إند يجهز)
+    // ✅ 2️⃣ كود جلب البيانات من السيرفر وتشغيله
     useEffect(() => {
-        API.get('/public/partners').then(res => setPartners(res.data));
-        API.get('/public/sponsors').then(res => setSponsors(res.data));
+        API.get('/public/sponsors')
+            .then(res => {
+                const allData = res.data;
+                // فصل البيانات بناءً على النوع المسجل في الداتا بيز
+                setPartners(allData.filter(item => item.type === 'partner'));
+                setSponsors(allData.filter(item => item.type === 'sponsor'));
+            })
+            .catch(err => {
+                console.error("Failed to fetch sponsors:", err);
+                // (اختياري) لو حصل خطأ ممكن تسيب المصفوفات فاضية أو تحط داتا وهمية
+            });
     }, []);
-    */
 
     return (
         <div style={styles.container}>
@@ -90,7 +88,7 @@ const LandingPage = ({ onGetStarted, user }) => {
             </div>
 
             {/* ------------------------------------------------------ */}
-            {/* ✅ 3️⃣ PARTNERS & SPONSORS SECTIONS (جديد) */}
+            {/* ✅ 3️⃣ PARTNERS & SPONSORS SECTIONS (Dynamic) */}
             {/* ------------------------------------------------------ */}
             
             {/* Partners Section */}
@@ -98,10 +96,19 @@ const LandingPage = ({ onGetStarted, user }) => {
                 <h3 style={styles.sectionTitle}>🤝 Our Strategic <span style={{color:'#4facfe'}}>Partners</span></h3>
                 <div style={styles.logosGrid}>
                     {partners.length > 0 ? partners.map((partner) => (
-                        <div key={partner.id} style={styles.logoWrapper} title={partner.name}>
-                            <img src={partner.logo} alt={partner.name} style={styles.brandLogo} />
-                        </div>
-                    )) : <p style={{color:'#666'}}>Coming Soon...</p>}
+                        <a 
+                            key={partner.id} 
+                            href={partner.website_link || '#'} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            style={styles.logoWrapper} 
+                            title={partner.name}
+                            className="logo-hover-effect" // 👈 ضيف الكلاس ده في ملف CSS
+                        >
+                            {/* استخدمنا logo_url بدلاً من logo عشان ده اسم العمود في الداتا بيز */}
+                            <img src={partner.logo_url} alt={partner.name} style={styles.brandLogo} />
+                        </a>
+                    )) : <p style={{color:'#666'}}>Loading Partners...</p>}
                 </div>
             </div>
 
@@ -110,10 +117,18 @@ const LandingPage = ({ onGetStarted, user }) => {
                 <h3 style={styles.sectionTitle}>💎 Official <span style={{color:'#00f2fe'}}>Sponsors</span></h3>
                 <div style={styles.logosGrid}>
                     {sponsors.length > 0 ? sponsors.map((sponsor) => (
-                        <div key={sponsor.id} style={styles.logoWrapper} title={sponsor.name}>
-                            <img src={sponsor.logo} alt={sponsor.name} style={styles.brandLogo} />
-                        </div>
-                    )) : <p style={{color:'#666'}}>Coming Soon...</p>}
+                        <a 
+                            key={sponsor.id} 
+                            href={sponsor.website_link || '#'} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            style={styles.logoWrapper} 
+                            title={sponsor.name}
+                            className="logo-hover-effect" // 👈 ضيف الكلاس ده في ملف CSS
+                        >
+                            <img src={sponsor.logo_url} alt={sponsor.name} style={styles.brandLogo} />
+                        </a>
+                    )) : <p style={{color:'#666'}}>Loading Sponsors...</p>}
                 </div>
             </div>
 
@@ -127,7 +142,7 @@ const LandingPage = ({ onGetStarted, user }) => {
 };
 
 // ------------------------------------------------------
-// ✅ 4️⃣ STYLES UPDATED
+// ✅ 4️⃣ STYLES
 // ------------------------------------------------------
 const styles = {
     container: {
@@ -136,7 +151,7 @@ const styles = {
         color: 'white',
         fontFamily: "'Cairo', 'Segoe UI', sans-serif",
         position: 'relative',
-        overflowX: 'hidden', // لمنع السكرول العرضي
+        overflowX: 'hidden', 
         display: 'flex',
         flexDirection: 'column',
     },
@@ -239,8 +254,7 @@ const styles = {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        // هذا الفلتر يجعل اللوجو أبيض بالكامل ليناسب الخلفية الداكنة
-        // وعند الوقوف عليه يظهر بلونه الأصلي
+        // الفلتر الافتراضي: أبيض بالكامل
         filter: 'grayscale(100%) brightness(0) invert(1)',
         opacity: 0.7,
         transition: 'all 0.3s ease',
@@ -257,16 +271,5 @@ const styles = {
         position: 'relative', zIndex: 10, borderTop: '1px solid rgba(255,255,255,0.05)'
     }
 };
-
-// 💡 إضافة صغيرة للـ Styles عشان الـ Hover يشتغل (React Inline Styles مش بتدعم hover selectors مباشرة)
-// الحل الأفضل هو إضافة كلاس CSS خارجي، لكن بما إننا شغالين Inline
-// ممكن تضيف السطر ده في ملف index.css عندك عشان التأثير يبان:
-/*
-.logo-hover-effect:hover {
-    filter: none !important;
-    opacity: 1 !important;
-    transform: scale(1.1);
-}
-*/
 
 export default LandingPage;
