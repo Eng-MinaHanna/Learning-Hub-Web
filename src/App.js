@@ -9,7 +9,16 @@ import CalendarView from './CalendarView';
 import CommunityView from './CommunityView';
 import NotificationsModal from './NotificationsModal';
 
-// ⚠️ تم إزالة الـ imports المتكررة (AdminUsersView, SettingsView, LeaderboardView) لأنهم مكتوبين تحت في نفس الملف
+// ✅ Import components from separate files
+import AdminUsersView from './AdminUsersView';
+import SettingsView from './SettingsView';
+import LeaderboardView from './LeaderboardView';
+// If TeamView is also a separate file, import it. If not, I'll include it below or you can move it to a file.
+// Assuming TeamView is separate for consistency:
+// import TeamView from './TeamView'; 
+
+// For now, I will keep TeamView inside here ONLY if you haven't created a file for it. 
+// If you have TeamView.js, uncomment the import above and remove the code at the bottom.
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -53,6 +62,7 @@ function App() {
     if (isMobile) setIsSidebarOpen(false);
   }, [currentView, isMobile]);
 
+  // Redirect Company to Leaderboard
   useEffect(() => {
       if (user?.role === 'company' && currentView === 'home') {
           setCurrentView('leaderboard');
@@ -310,188 +320,8 @@ function App() {
   );
 }
 
-const AdminUsersView = ({ currentUser }) => {
-    const [users, setUsers] = useState([]);
-    const [showAddForm, setShowAddForm] = useState(false);
-    const [newUser, setNewUser] = useState({ name: '', email: '', phone: '', password: '', role: 'company' });
-
-    const fetchUsers = () => {
-        API.get('/users').then(res => setUsers(res.data)).catch(() => {});
-    };
-
-    useEffect(() => { fetchUsers(); }, []);
-
-    const handleCreateUser = (e) => {
-        e.preventDefault();
-        API.post('/admin/add-user', newUser)
-           .then(res => {
-               if (res.data.status === 'Success') {
-                   alert("User Created Successfully! 🎉");
-                   setShowAddForm(false);
-                   setNewUser({ name: '', email: '', phone: '', password: '', role: 'company' });
-                   fetchUsers();
-               } else {
-                   alert(res.data.message);
-               }
-           });
-    };
-
-    return (
-        <div style={{ maxWidth: '1000px', margin: '0 auto', paddingBottom: '50px' }}>
-            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'30px'}}>
-                <h2 style={{ color: 'white', margin:0 }}>👥 User Management</h2>
-                <button onClick={() => setShowAddForm(!showAddForm)} style={{...styles.actionBtn, background:'#00e676', color:'#050810'}}>
-                    {showAddForm ? 'Cancel' : '➕ Add Company/User'}
-                </button>
-            </div>
-
-            {showAddForm && (
-                <form onSubmit={handleCreateUser} style={{background:'rgba(255,255,255,0.05)', padding:'20px', borderRadius:'15px', marginBottom:'30px', border:'1px solid #4facfe'}}>
-                    <h4 style={{color:'#4facfe', marginTop:0}}>Create New Account</h4>
-                    <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px'}}>
-                        <input placeholder="Name (e.g. Vodafone)" value={newUser.name} onChange={e=>setNewUser({...newUser, name: e.target.value})} style={styles.sidebarInput} required />
-                        <input placeholder="Email" value={newUser.email} onChange={e=>setNewUser({...newUser, email: e.target.value})} style={styles.sidebarInput} required />
-                        <input placeholder="Phone" value={newUser.phone} onChange={e=>setNewUser({...newUser, phone: e.target.value})} style={styles.sidebarInput} />
-                        <input placeholder="Password" value={newUser.password} onChange={e=>setNewUser({...newUser, password: e.target.value})} style={styles.sidebarInput} required />
-                        <select value={newUser.role} onChange={e=>setNewUser({...newUser, role: e.target.value})} style={styles.sidebarInput}>
-                            <option value="company">🏢 Company</option>
-                            <option value="instructor">🎓 Instructor</option>
-                            <option value="student">👨‍🎓 Student</option>
-                            <option value="admin">🛡️ Admin</option>
-                        </select>
-                    </div>
-                    <button type="submit" style={{...styles.continueBtn, marginTop:'15px', width:'auto', padding:'10px 30px'}}>Create Account</button>
-                </form>
-            )}
-
-            <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', color: 'white' }}>
-                    <thead>
-                        <tr style={{ borderBottom: '2px solid #333', textAlign: 'left' }}>
-                            <th style={{ padding: '15px' }}>User</th>
-                            <th style={{ padding: '15px' }}>Role</th>
-                            <th style={{ padding: '15px' }}>Email</th>
-                            <th style={{ padding: '15px' }}>Joined</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {users.map(u => (
-                            <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                <td style={{ padding: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <div style={{ width: '35px', height: '35px', borderRadius: '50%', background: '#333', overflow: 'hidden' }}>
-                                        {u.profile_pic ? <img src={u.profile_pic} alt="P" style={{ width: '100%', height: '100%' }} /> : <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}>{u.name.charAt(0)}</div>}
-                                    </div>
-                                    {u.name}
-                                </td>
-                                <td style={{ padding: '15px' }}>
-                                    <span style={{ 
-                                        padding: '5px 10px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 'bold',
-                                        background: u.role === 'admin' ? 'rgba(255, 215, 0, 0.1)' : u.role === 'company' ? 'rgba(0, 230, 118, 0.1)' : 'rgba(79, 172, 254, 0.1)',
-                                        color: u.role === 'admin' ? '#ffd700' : u.role === 'company' ? '#00e676' : '#4facfe'
-                                    }}>
-                                        {u.role.toUpperCase()}
-                                    </span>
-                                </td>
-                                <td style={{ padding: '15px', color: '#aaa' }}>{u.email}</td>
-                                <td style={{ padding: '15px', color: '#666' }}>{new Date(u.created_at).toLocaleDateString()}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-};
-
-const SettingsView = ({ user, onUpdateUser }) => {
-  const [formData, setFormData] = useState({
-      name: user.name || '', email: user.email || '', phone: user.phone || '',
-      oldPassword: '', newPassword: '', 
-      linkedin: user.linkedin || '', cv_link: user.cv_link || '', job_title: user.job_title || ''
-  });
-  const [avatar, setAvatar] = useState(null);
-
-  const handleSubmit = async (e) => {
-      e.preventDefault();
-      const data = new FormData();
-      Object.keys(formData).forEach(key => data.append(key, formData[key]));
-      data.append('id', user.id);
-      if (avatar) data.append('avatar', avatar);
-
-      try {
-          const res = await API.put('/user/update', data);
-          if (res.data.status === 'Success') {
-              alert("Profile Updated! ✅");
-              onUpdateUser({ ...formData, profile_pic: res.data.newProfilePic || user.profile_pic });
-          } else { alert(res.data.message || "Failed"); }
-      } catch (e) { alert("Error updating"); }
-  };
-
-  return (
-      <div style={{ maxWidth: '600px', margin: '0 auto', background: 'rgba(30, 41, 59, 0.5)', padding: '30px', borderRadius: '20px' }}>
-          <h2 style={{ color: '#4facfe', marginBottom: '20px' }}>⚙️ Profile Settings</h2>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <div style={{textAlign:'center', marginBottom:'10px'}}>
-                  <div style={{width:'80px', height:'80px', borderRadius:'50%', overflow:'hidden', margin:'0 auto', border:'2px solid #4facfe'}}>
-                      {avatar ? <img src={URL.createObjectURL(avatar)} style={{width:'100%', height:'100%', objectFit:'cover'}} alt="P"/> : <img src={user.profile_pic} style={{width:'100%', height:'100%', objectFit:'cover'}} alt="P"/>}
-                  </div>
-                  <input type="file" onChange={e => setAvatar(e.target.files[0])} style={{marginTop:'10px', fontSize:'0.8rem'}} />
-              </div>
-              <input placeholder="Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} style={styles.sidebarInput} />
-              <input placeholder="Job Title (e.g. React Developer)" value={formData.job_title} onChange={e => setFormData({...formData, job_title: e.target.value})} style={styles.sidebarInput} />
-              <input placeholder="LinkedIn Profile URL" value={formData.linkedin} onChange={e => setFormData({...formData, linkedin: e.target.value})} style={styles.sidebarInput} />
-              <input placeholder="CV / Portfolio Link" value={formData.cv_link} onChange={e => setFormData({...formData, cv_link: e.target.value})} style={styles.sidebarInput} />
-              <input placeholder="Email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} style={styles.sidebarInput} disabled />
-              <input placeholder="Phone" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} style={styles.sidebarInput} />
-              <hr style={{borderColor:'rgba(255,255,255,0.1)', width:'100%'}}/>
-              <input type="password" placeholder="Old Password" value={formData.oldPassword} onChange={e => setFormData({...formData, oldPassword: e.target.value})} style={styles.sidebarInput} />
-              <input type="password" placeholder="New Password" value={formData.newPassword} onChange={e => setFormData({...formData, newPassword: e.target.value})} style={styles.sidebarInput} />
-              <button type="submit" style={styles.continueBtn}>Update Profile</button>
-          </form>
-      </div>
-  );
-};
-
-const LeaderboardView = () => {
-  const [users, setUsers] = useState([]);
-  useEffect(() => { API.get('/leaderboard').then(res => setUsers(res.data)).catch(() => {}); }, []);
-
-  return (
-      <div style={{ maxWidth: '800px', margin: '0 auto', animation: 'fadeIn 0.5s ease' }}>
-          <h2 style={{ textAlign: 'center', marginBottom: '30px', color: '#ffd700', fontSize: '2rem' }}>🏆 Top Talent & Performers</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              {users.map((u, idx) => {
-                  const totalPoints = (u.video_points || 0) + (u.quiz_points || 0) + (u.post_points || 0) + (u.comment_points || 0);
-                  return (
-                      <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: idx === 0 ? 'linear-gradient(90deg, rgba(255, 215, 0, 0.2), rgba(30, 41, 59, 0.6))' : 'rgba(30, 41, 59, 0.6)', padding: '15px 25px', borderRadius: '15px', border: idx === 0 ? '1px solid #ffd700' : '1px solid rgba(255,255,255,0.05)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                              <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: idx === 0 ? '#ffd700' : idx === 1 ? '#c0c0c0' : idx === 2 ? '#cd7f32' : '#64748b', width: '30px' }}>#{idx + 1}</div>
-                              <div style={{ width: '50px', height: '50px', borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.1)' }}>
-                                  {u.profile_pic ? <img src={u.profile_pic} alt="P" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', background: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{u.name.charAt(0)}</div>}
-                              </div>
-                              <div>
-                                  <div style={{ fontWeight: 'bold', fontSize: '1.1rem', color: 'white' }}>{u.name} {idx === 0 && '👑'}</div>
-                                  <div style={{ fontSize: '0.8rem', color: '#4facfe' }}>{u.job_title || 'Student Member'}</div>
-                              </div>
-                          </div>
-                          
-                          <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
-                              {u.linkedin && <a href={u.linkedin} target="_blank" rel="noreferrer" title="LinkedIn Profile" style={{fontSize:'1.5rem', textDecoration:'none', cursor:'pointer'}}>🔗</a>}
-                              {u.cv_link && <a href={u.cv_link} target="_blank" rel="noreferrer" title="View CV" style={{fontSize:'1.5rem', textDecoration:'none', cursor:'pointer'}}>📄</a>}
-                              
-                              <div style={{ textAlign: 'right', borderLeft:'1px solid rgba(255,255,255,0.1)', paddingLeft:'15px' }}>
-                                  <div style={{ fontWeight: '900', color: '#4facfe', fontSize: '1.2rem' }}>{totalPoints}</div>
-                                  <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>POINTS</div>
-                              </div>
-                          </div>
-                      </div>
-                  );
-              })}
-          </div>
-      </div>
-  );
-};
-
+// ⚠️ Note: If TeamView is NOT in a separate file, keep this code. 
+// If you created TeamView.js, delete this section and import it at top.
 const TeamView = () => {
     const [team, setTeam] = useState([]);
     useEffect(() => {
@@ -569,7 +399,7 @@ const styles = {
   navActive: { background: 'rgba(79, 172, 254, 0.1)', color: '#4facfe', borderRight: '3px solid #4facfe', padding: '12px 15px', borderRadius: '4px 12px 12px 4px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px', width: '100%' },
   logoutBtn: { marginTop: '10px', background: 'rgba(239, 68, 68, 0.05)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.1)', padding: '10px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', fontSize:'0.8rem', width: '100%' },
   mainArea: { padding: '40px 20px', transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)', position: 'relative', zIndex: 1, minHeight: '100vh' },
-  pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', flexWrap: 'wrap', gap: '20px' },
+  pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', flexWrap: 'wrap', gap: '20px', paddingLeft: '70px', marginTop: '10px' },
   welcomeText: { color: 'white', margin: 0, fontSize: '1.6rem', fontWeight: '800' },
   searchContainer: { background: 'rgba(255,255,255,0.03)', padding: '10px 20px', borderRadius: '30px', border: '1px solid rgba(255,255,255,0.08)', width: '280px' },
   searchInput: { background: 'transparent', border: 'none', color: 'white', outline: 'none', width: '100%', fontSize: '0.9rem' },
@@ -594,8 +424,7 @@ const styles = {
   toggleBtn: { position: 'fixed', zIndex: 3000, background: '#4facfe', color: '#050810', border: 'none', borderRadius: '10px', width: '40px', height: '40px', cursor: 'pointer', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 15px rgba(79,172,254,0.4)', transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)' },
   fab: { position: 'fixed', bottom: '30px', right: '30px', width: '65px', height: '65px', borderRadius: '22px', background: 'linear-gradient(135deg, #4facfe, #00f2fe)', color: '#050810', fontSize: '35px', border: 'none', cursor: 'pointer', boxShadow: '0 15px 30px rgba(79,172,254,0.5)', zIndex:100, fontWeight: 'bold' },
   actionBtn: { padding: '8px 16px', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' },
-  sidebarInput: { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', outline: 'none' },
-  continueBtn: { width: '100%', padding: '14px', borderRadius: '14px', border: 'none', background: 'linear-gradient(90deg, #4facfe, #00f2fe)', color: '#050810', fontWeight: '900', cursor: 'pointer', transition: '0.3s' },
+  sidebarInput: { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', outline: 'none' }
 };
 
 export default App;
