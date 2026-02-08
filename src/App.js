@@ -158,7 +158,7 @@ function App() {
       {/* ✅ الزرار: مكانه ثابت وفي الطبقة العليا */}
       <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={{
           ...styles.toggleBtn, 
-          left: isSidebarOpen && !isMobile ? '290px' : '20px',
+          left: isSidebarOpen && !isMobile ? '300px' : '20px', // تعديل المسافة لعدم التغطية عند الفتح
           top: '25px'
       }}>
         {isSidebarOpen ? '◀' : '☰'}
@@ -208,11 +208,11 @@ function App() {
           marginLeft: (isSidebarOpen && !isMobile) ? '280px' : '0px',
           width: (isSidebarOpen && !isMobile) ? 'calc(100% - 280px)' : '100%'
         }}>
-          {/* ✅ الحل هنا: إضافة مسافة (Padding) من الشمال عشان الزرار ميغطيش الكلام */}
+          {/* ✅ الحل هنا: إضافة مسافة (Padding) من الشمال لو السايد بار مقفول عشان الزرار ميغطيش الكلام */}
           <div style={{ 
               ...styles.pageHeader, 
-              paddingLeft: isMobile ? '70px' : '0',  // ⚡ إزاحة النص لليمين في الموبايل
-              marginTop: isMobile ? '10px' : '0'     // ⚡ نزول بسيط عشان المحاذاة
+              paddingLeft: (!isSidebarOpen || isMobile) ? '70px' : '0',  // ⚡ إزاحة النص لو السايد بار مقفول
+              marginTop: isMobile ? '10px' : '0'     
           }}>
              {currentView === 'dashboard' && !selectedCourse && (
                 <h1 style={styles.welcomeText}>Hello, {user?.name?.split(' ')[0]}! ⚡</h1>
@@ -243,6 +243,7 @@ function App() {
                       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
                           <h3 style={styles.courseTitle}>{act.title}</h3>
                           
+                          {/* ✅ زر التعديل والحذف موجود هنا - تأكد من الصلاحيات */}
                           {(user.role === 'admin' || (user.role === 'instructor' && act.created_by === user.id)) && (
                             <div style={{display: 'flex', gap: '8px'}}>
                                 <button onClick={() => setEditingActivity(act)} style={styles.editBtnSmall}>✏️</button>
