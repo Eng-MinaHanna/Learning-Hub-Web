@@ -30,16 +30,11 @@ function App() {
   const [editingActivity, setEditingActivity] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  
-  const [currentView, setCurrentView] = useState(() => {
-      return localStorage.getItem('activeView') || 'home';
-  });
-
+  const [currentView, setCurrentView] = useState(() => localStorage.getItem('activeView') || 'home');
   const [progressData, setProgressData] = useState({});
   const [unreadCount, setUnreadCount] = useState(0);
   const [showAuth, setShowAuth] = useState(false);
   const [loading, setLoading] = useState(false);
-
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
 
@@ -48,7 +43,7 @@ function App() {
       const mobile = window.innerWidth < 1024;
       setIsMobile(mobile);
       if (!mobile) setIsSidebarOpen(true);
-      else setIsSidebarOpen(false); // Close on mobile resize
+      else setIsSidebarOpen(false);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -59,11 +54,13 @@ function App() {
     if (isMobile) setIsSidebarOpen(false);
   }, [currentView, isMobile]);
 
-  useEffect(() => {
-      if (user?.role === 'company' && currentView === 'home') {
-          setCurrentView('leaderboard');
-      }
-  }, [user, currentView]);
+  // ✅ تعريف دالة التنبيهات المفقودة
+  const checkNotifications = () => {
+    if (!user?.id) return;
+    API.get(`/notifications/${user.id}`)
+      .then(res => setUnreadCount(Array.isArray(res.data) ? res.data.filter(n => !n.is_read).length : 0))
+      .catch(() => {});
+  };
 
   const fetchData = async () => {
     if (activities.length === 0) setLoading(true); 
@@ -71,12 +68,6 @@ function App() {
       const actsRes = await API.get('/activities/all');
       const data = Array.isArray(actsRes.data) ? actsRes.data : [];
       setActivities(data);
-
-      const savedCourseId = localStorage.getItem('activeCourseId');
-      if (savedCourseId) {
-          const courseToRestore = data.find(c => c.id == savedCourseId);
-          if (courseToRestore) setSelectedCourse(courseToRestore);
-      }
 
       if (user?.email && user.role !== 'company') {
         const promises = data.map(course => 
@@ -92,7 +83,7 @@ function App() {
         if (user.role === 'admin') {
           API.get('/stats').then(res => setStats(res.data || stats));
         }
-        checkNotifications();
+        checkNotifications(); // الآن ستعمل بدون خطأ
       }
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
@@ -151,7 +142,6 @@ function App() {
     <div style={styles.appContainer}>
       <div style={styles.backgroundGrid}></div>
       
-      {/* ✅ الزرار المعدل: يتحرك بذكاء مع الـ Sidebar */}
       <button 
         onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
         style={{
@@ -163,7 +153,6 @@ function App() {
       </button>
 
       <div style={{ display: 'flex', minHeight: '100vh', position: 'relative' }}>
-        
         <Sidebar 
           isOpen={isSidebarOpen}
           isMobile={isMobile}
@@ -183,7 +172,7 @@ function App() {
                 <h1 style={styles.welcomeText}>Hello, {user?.name?.split(' ')[0]}! ⚡</h1>
              )}
              {user.role === 'company' && currentView === 'leaderboard' && (
-                <h1 style={styles.welcomeText}>Welcome, {user.name} 👋 <span style={{fontSize:'1rem', color:'#888'}}>Explore our talents</span></h1>
+                <h1 style={styles.welcomeText}>Welcome, {user.name} 👋</h1>
              )}
              {currentView === 'dashboard' && !selectedCourse && (
                <div style={styles.searchContainer}>
@@ -199,10 +188,9 @@ function App() {
                 <DashboardCard title="Total Students" value={stats.total_students} icon="👨‍🎓" color="#43e97b" />
                 <DashboardCard title="Workshops" value={stats.total_workshops} icon="⚡" color="#fa709a" />
               </div>
-
               <div style={styles.coursesGrid}>
                 {filteredActivities.map(act => (
-                  <div key={act.id} style={styles.courseCard} className="hover-card">
+                  <div key={act.id} style={styles.courseCard}>
                     <div style={styles.imageBox}>
                        {act.file_path ? <img src={act.file_path} alt="C" style={styles.courseImg} /> : <div style={styles.coursePlaceholder}>IEEE</div>}
                        <div style={styles.typeBadge}>{act.type}</div>
@@ -251,6 +239,30 @@ function App() {
   );
 }
 
+// ✅ إضافة مكون TeamView المفقود
+const TeamView = () => {
+    const [team, setTeam] = useState([]);
+    useEffect(() => {
+        API.get('/team').then(res => setTeam(res.data)).catch(() => {});
+    }, []);
+    return (
+        <div style={{paddingBottom: '50px'}}>
+            <h2 style={{color: 'white', marginBottom: '40px', borderLeft: '5px solid #4facfe', paddingLeft: '15px', fontSize: '2rem'}}>🏆 Meet Our Heroes</h2>
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '25px'}}>
+                {team.map((m, i) => (
+                    <div key={i} style={{background: 'rgba(30, 41, 59, 0.4)', padding: '25px', borderRadius: '16px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.05)'}}>
+                        <div style={{width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', margin: '0 auto 15px', border: `3px solid #4facfe`}}>
+                            {m.profile_pic ? <img src={m.profile_pic} style={{width: '100%', height: '100%', objectFit: 'cover'}} alt="P" /> : <div style={{width:'100%', height:'100%', background:'#333', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'2rem'}}>{m.name.charAt(0)}</div>}
+                        </div>
+                        <h3 style={{margin: '0 0 5px 0', color: 'white', fontSize: '1.1rem'}}>{m.name}</h3>
+                        <span style={{fontSize: '0.75rem', color: '#4facfe', background: 'rgba(79, 172, 254, 0.1)', padding: '4px 12px', borderRadius: '20px', fontWeight: 'bold'}}>{m.role.toUpperCase()}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 const DashboardCard = ({ title, value, icon, color }) => (
   <div style={{ ...styles.statCard, borderLeft: `5px solid ${color}` }}>
     <div style={{ ...styles.iconCircle, backgroundColor: `${color}22`, color: color }}>{icon}</div>
@@ -261,7 +273,6 @@ const DashboardCard = ({ title, value, icon, color }) => (
   </div>
 );
 
-// ✅ الأنماط المحدثة (Styles)
 const styles = {
   appContainer: { fontFamily: "'Cairo', sans-serif", backgroundColor: '#050810', color: 'white', minHeight: '100vh', position: 'relative', overflowX: 'hidden' },
   backgroundGrid: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundImage: 'radial-gradient(rgba(79, 172, 254, 0.03) 2px, transparent 2px)', backgroundSize: '50px 50px', zIndex: 0 },
@@ -289,28 +300,7 @@ const styles = {
   continueBtn: { width: '100%', padding: '14px', borderRadius: '14px', border: 'none', background: 'linear-gradient(90deg, #4facfe, #00f2fe)', color: '#050810', fontWeight: '900', cursor: 'pointer', transition: '0.3s' },
   deleteBtnSmall: { width: '35px', height:'35px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '10px', cursor: 'pointer', display:'flex', alignItems:'center', justifyContent:'center' },
   editBtnSmall: { width: '35px', height:'35px', background: 'rgba(255, 255, 255, 0.05)', color: '#fff', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '10px', cursor: 'pointer', display:'flex', alignItems:'center', justifyContent:'center' },
-  
-  // ✅ ستايل زر التبديل العصري مع خاصية التحرك الذكي
-  toggleBtn: { 
-    position: 'fixed', 
-    zIndex: 3000, 
-    top: '20px',
-    background: 'rgba(79, 172, 254, 0.9)', 
-    backdropFilter: 'blur(5px)',
-    color: '#050810', 
-    border: 'none', 
-    borderRadius: '12px', 
-    width: '45px', 
-    height: '45px', 
-    cursor: 'pointer', 
-    fontSize: '1.4rem', 
-    display: 'flex', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    boxShadow: '0 4px 15px rgba(79,172,254,0.3)', 
-    transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)' // نفس سرعة الـ Sidebar
-  },
-  
+  toggleBtn: { position: 'fixed', zIndex: 3000, top: '20px', background: 'rgba(79, 172, 254, 0.9)', backdropFilter: 'blur(5px)', color: '#050810', border: 'none', borderRadius: '12px', width: '45px', height: '45px', cursor: 'pointer', fontSize: '1.4rem', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(79,172,254,0.3)', transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)' },
   fab: { position: 'fixed', bottom: '30px', right: '30px', width: '65px', height: '65px', borderRadius: '22px', background: 'linear-gradient(135deg, #4facfe, #00f2fe)', color: '#050810', fontSize: '35px', border: 'none', cursor: 'pointer', boxShadow: '0 15px 30px rgba(79,172,254,0.5)', zIndex:100, fontWeight: 'bold' }
 };
 
