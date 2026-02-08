@@ -34,7 +34,7 @@ function App() {
   const [progressData, setProgressData] = useState({});
   const [unreadCount, setUnreadCount] = useState(0);
   const [showAuth, setShowAuth] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
 
@@ -43,7 +43,6 @@ function App() {
       const mobile = window.innerWidth < 1024;
       setIsMobile(mobile);
       if (!mobile) setIsSidebarOpen(true);
-      else setIsSidebarOpen(false);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -54,42 +53,77 @@ function App() {
     if (isMobile) setIsSidebarOpen(false);
   }, [currentView, isMobile]);
 
-  // ✅ تعريف دالة التنبيهات المفقودة
-  const checkNotifications = () => {
+  // ✅ جلب التنبيهات مع انتظار النتيجة
+  const checkNotifications = async () => {
     if (!user?.id) return;
-    API.get(`/notifications/${user.id}`)
-      .then(res => setUnreadCount(Array.isArray(res.data) ? res.data.filter(n => !n.is_read).length : 0))
-      .catch(() => {});
+    try {
+      const res = await API.get(`/notifications/${user.id}`);
+      setUnreadCount(Array.isArray(res.data) ? res.data.filter(n => !n.is_read).length : 0);
+    } catch (e) { console.error("Notify Error"); }
   };
 
   const fetchData = async () => {
-    if (activities.length === 0) setLoading(true); 
+    setLoading(true); 
     try {
+      // 1. جلب الأنشطة
       const actsRes = await API.get('/activities/all');
       const data = Array.isArray(actsRes.data) ? actsRes.data : [];
       setActivities(data);
 
-      if (user?.email && user.role !== 'company') {
-        const promises = data.map(course => 
-           API.get(`/progress/calculate/${course.id}/${user.email}`)
-             .then(res => ({id: course.id, val: res.data?.percent || 0}))
-             .catch(()=>null)
-        );
-        const results = await Promise.all(promises);
-        const newProgress = {};
-        results.forEach(r => { if(r) newProgress[r.id] = r.val });
-        setProgressData(newProgress);
+      const criticalRequests = [];
 
-        if (user.role === 'admin') {
-          API.get('/stats').then(res => setStats(res.data || stats));
-        }
-        checkNotifications(); // الآن ستعمل بدون خطأ
+      // 2. حساب الإحصائيات فوراً من البيانات المتاحة
+      const totalTracks = data.length;
+      const totalWorkshops = data.filter(a => a.type?.toLowerCase() === 'workshop').length;
+
+      if (user?.role === 'admin') {
+        criticalRequests.push(
+          API.get('/stats').then(res => {
+            setStats({
+              total_activities: totalTracks,
+              total_workshops: totalWorkshops,
+              total_students: res.data?.total_students || 0
+            });
+          })
+        );
+      } else {
+        // للطلاب: تظهر الأعداد المحسوبة وعدد افتراضي للطلاب
+        setStats({ total_activities: totalTracks, total_workshops: totalWorkshops, total_students: '150+' });
       }
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+
+      // 3. جلب التقدم لكل تراك (Prefetching)
+      if (user?.email && user.role !== 'company') {
+        const progressPromises = data.map(course => 
+          API.get(`/progress/calculate/${course.id}/${user.email}`)
+            .then(res => ({id: course.id, val: res.data?.percent || 0}))
+            .catch(() => ({id: course.id, val: 0}))
+        );
+        
+        criticalRequests.push(
+          Promise.all(progressPromises).then(results => {
+            const newProgress = {};
+            results.forEach(r => { newProgress[r.id] = r.val });
+            setProgressData(newProgress);
+          })
+        );
+        criticalRequests.push(checkNotifications());
+      }
+
+      // 🔥 الانتظار حتى تنتهي جميع الطلبات تماماً
+      await Promise.all(criticalRequests);
+
+    } catch (err) {
+      console.error("Global Fetch Error", err);
+    } finally {
+      // إخفاء التحميل بعد جاهزية كل شيء
+      setTimeout(() => setLoading(false), 600);
+    }
   };
 
-  useEffect(() => { if (user) fetchData(); }, [user?.id]);
+  useEffect(() => { 
+    if (user) fetchData(); 
+    else setLoading(false);
+  }, [user?.id]);
 
   const handleLogout = () => { setUser(null); localStorage.clear(); setCurrentView('home'); };
 
@@ -99,41 +133,19 @@ function App() {
     localStorage.setItem('ieee_user', JSON.stringify(newUser));
   };
 
-  const filteredActivities = (activities || []).filter(act =>
-    act?.title?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleOpenCourse = (course) => { 
-    setSelectedCourse(course); 
-    localStorage.setItem('activeCourseId', course?.id); 
-  };
-
-  const handleCloseCourse = () => {
-    setSelectedCourse(null);
-    localStorage.removeItem('activeCourseId'); 
-    fetchData();
-  };
-
-  const handleDelete = async (id) => {
-    if (window.confirm("⚠️ Confirm Delete?")) {
-      try { await API.delete(`/activities/delete/${id}`); fetchData(); } 
-      catch (err) { alert("Error deleting"); }
-    }
-  };
-
-  if (!user) {
+  if (!user && !loading) {
     return (
       <div style={styles.appContainer}>
         <div style={styles.backgroundGrid}></div>
-        {showAuth ? <AuthPage onLogin={(u) => {setUser(u); setShowAuth(false);}} /> : <LandingPage onGetStarted={() => setShowAuth(true)} />}
+        {showAuth ? <AuthPage onLogin={(u) => {setUser(u); setShowAuth(false);}} /> : <LandingPage user={user} onGetStarted={() => setShowAuth(true)} />}
       </div>
     );
   }
 
-  if (loading && activities.length === 0) {
+  if (loading) {
       return (
           <div style={styles.loadingContainer}>
-              <LoadingEffect message="INITIALIZING SYSTEM..." />
+              <LoadingEffect message="PREPARING YOUR HUB..." />
           </div>
       );
   }
@@ -169,7 +181,10 @@ function App() {
         }}>
           <div style={styles.pageHeader}>
              {currentView === 'dashboard' && !selectedCourse && user.role !== 'company' && (
-                <h1 style={styles.welcomeText}>Hello, {user?.name?.split(' ')[0]}! ⚡</h1>
+                <div>
+                   <h1 style={styles.welcomeText}>Hello, {user?.name?.split(' ')[0]}! ⚡</h1>
+                   <p style={{color: '#64748b', marginTop: '5px'}}>Everything is synced and ready.</p>
+                </div>
              )}
              {user.role === 'company' && currentView === 'leaderboard' && (
                 <h1 style={styles.welcomeText}>Welcome, {user.name} 👋</h1>
@@ -183,20 +198,22 @@ function App() {
           
           {currentView === 'dashboard' && !selectedCourse && user.role !== 'company' && (
             <div style={styles.contentFadeIn}>
+              {/* ✅ عرض الإحصائيات التي تم إصلاحها */}
               <div style={styles.statsGrid}>
                 <DashboardCard title="Total Tracks" value={stats.total_activities} icon="📚" color="#4facfe" />
-                <DashboardCard title="Total Students" value={stats.total_students} icon="👨‍🎓" color="#43e97b" />
+                <DashboardCard title="Active Students" value={stats.total_students} icon="👨‍🎓" color="#43e97b" />
                 <DashboardCard title="Workshops" value={stats.total_workshops} icon="⚡" color="#fa709a" />
               </div>
+
               <div style={styles.coursesGrid}>
-                {filteredActivities.map(act => (
+                {activities.filter(a => a.title.toLowerCase().includes(searchTerm.toLowerCase())).map(act => (
                   <div key={act.id} style={styles.courseCard}>
                     <div style={styles.imageBox}>
                        {act.file_path ? <img src={act.file_path} alt="C" style={styles.courseImg} /> : <div style={styles.coursePlaceholder}>IEEE</div>}
                        <div style={styles.typeBadge}>{act.type}</div>
                     </div>
                     <div style={{ padding: '20px' }}>
-                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
                           <h3 style={styles.courseTitle}>{act.title}</h3>
                           {(user.role === 'admin' || (user.role === 'instructor' && act.created_by === user.id)) && (
                             <div style={{display: 'flex', gap: '8px'}}>
@@ -209,7 +226,7 @@ function App() {
                           <div style={styles.progressText}>Progress: {progressData[act.id] || 0}%</div>
                           <div style={styles.barBg}><div style={{...styles.barFill, width: `${progressData[act.id] || 0}%`}}></div></div>
                       </div>
-                      <button onClick={() => handleOpenCourse(act)} style={styles.continueBtn}>Continue ▶️</button>
+                      <button onClick={() => handleOpenCourse(act)} style={styles.continueBtn}>Continue Learning ▶️</button>
                     </div>
                   </div>
                 ))}
@@ -239,14 +256,23 @@ function App() {
   );
 }
 
-// ✅ إضافة مكون TeamView المفقود
+// ✅ مكون الإحصائيات (Stat Card) المحسن
+const DashboardCard = ({ title, value, icon, color }) => (
+  <div style={{ ...styles.statCard, borderBottom: `3px solid ${color}` }}>
+    <div style={{ ...styles.iconCircle, backgroundColor: `${color}15`, color: color }}>{icon}</div>
+    <div>
+      <div style={styles.statValue}>{value}</div>
+      <div style={styles.statLabel}>{title}</div>
+    </div>
+  </div>
+);
+
+// ✅ مكون فريق العمل
 const TeamView = () => {
     const [team, setTeam] = useState([]);
-    useEffect(() => {
-        API.get('/team').then(res => setTeam(res.data)).catch(() => {});
-    }, []);
+    useEffect(() => { API.get('/team').then(res => setTeam(res.data)).catch(() => {}); }, []);
     return (
-        <div style={{paddingBottom: '50px'}}>
+        <div style={{paddingBottom: '50px', animation: 'fadeIn 0.5s ease'}}>
             <h2 style={{color: 'white', marginBottom: '40px', borderLeft: '5px solid #4facfe', paddingLeft: '15px', fontSize: '2rem'}}>🏆 Meet Our Heroes</h2>
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '25px'}}>
                 {team.map((m, i) => (
@@ -263,16 +289,6 @@ const TeamView = () => {
     );
 };
 
-const DashboardCard = ({ title, value, icon, color }) => (
-  <div style={{ ...styles.statCard, borderLeft: `5px solid ${color}` }}>
-    <div style={{ ...styles.iconCircle, backgroundColor: `${color}22`, color: color }}>{icon}</div>
-    <div>
-      <div style={styles.statLabel}>{title}</div>
-      <div style={styles.statValue}>{value}</div>
-    </div>
-  </div>
-);
-
 const styles = {
   appContainer: { fontFamily: "'Cairo', sans-serif", backgroundColor: '#050810', color: 'white', minHeight: '100vh', position: 'relative', overflowX: 'hidden' },
   backgroundGrid: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundImage: 'radial-gradient(rgba(79, 172, 254, 0.03) 2px, transparent 2px)', backgroundSize: '50px 50px', zIndex: 0 },
@@ -280,14 +296,18 @@ const styles = {
   mainArea: { padding: '40px 20px', transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)', position: 'relative', zIndex: 1, minHeight: '100vh' },
   pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', flexWrap: 'wrap', gap: '20px', paddingLeft: '70px', paddingTop: '10px' },
   welcomeText: { color: 'white', margin: 0, fontSize: '1.6rem', fontWeight: '800' },
-  searchContainer: { background: 'rgba(255,255,255,0.03)', padding: '10px 20px', borderRadius: '30px', border: '1px solid rgba(255,255,255,0.08)', width: '280px' },
+  searchContainer: { background: 'rgba(15, 23, 42, 0.5)', padding: '10px 20px', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.08)', width: '280px', backdropFilter: 'blur(10px)' },
   searchInput: { background: 'transparent', border: 'none', color: 'white', outline: 'none', width: '100%', fontSize: '0.9rem' },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '50px' },
-  statCard: { background: 'rgba(15, 23, 42, 0.4)', padding: '25px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '20px', border: '1px solid rgba(255,255,255,0.03)', backdropFilter: 'blur(10px)' },
-  statLabel: { color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' },
+  
+  // ✅ ستايل الإحصائيات الجديد
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '25px', marginBottom: '50px' },
+  statCard: { background: 'rgba(15, 23, 42, 0.4)', padding: '25px', borderRadius: '24px', display: 'flex', alignItems: 'center', gap: '20px', border: '1px solid rgba(255,255,255,0.03)', backdropFilter: 'blur(10px)' },
+  iconCircle: { width: '55px', height: '55px', borderRadius: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' },
   statValue: { fontSize: '1.8rem', fontWeight: '900', color: 'white' },
+  statLabel: { color: '#94a3b8', fontSize: '12px', fontWeight: '600' },
+
   coursesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '30px' },
-  courseCard: { backgroundColor: 'rgba(30, 41, 59, 0.3)', borderRadius: '24px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)', transition: '0.3s' },
+  courseCard: { backgroundColor: 'rgba(30, 41, 59, 0.2)', borderRadius: '24px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)', transition: '0.3s transform' },
   imageBox: { position: 'relative', height: '180px' },
   courseImg: { width: '100%', height: '100%', objectFit: 'cover' },
   coursePlaceholder: { width: '100%', height: '100%', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4facfe', fontWeight: '900', fontSize: '2rem' },
@@ -296,7 +316,7 @@ const styles = {
   progressSection: { margin: '20px 0' },
   progressText: { fontSize: '11px', color: '#64748b', marginBottom: '8px' },
   barBg: { width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px' },
-  barFill: { height: '100%', background: 'linear-gradient(90deg, #4facfe, #00f2fe)', borderRadius: '10px', transition: '1s ease' },
+  barFill: { height: '100%', background: 'linear-gradient(90deg, #4facfe, #00f2fe)', borderRadius: '10px', transition: '1.5s ease' },
   continueBtn: { width: '100%', padding: '14px', borderRadius: '14px', border: 'none', background: 'linear-gradient(90deg, #4facfe, #00f2fe)', color: '#050810', fontWeight: '900', cursor: 'pointer', transition: '0.3s' },
   deleteBtnSmall: { width: '35px', height:'35px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '10px', cursor: 'pointer', display:'flex', alignItems:'center', justifyContent:'center' },
   editBtnSmall: { width: '35px', height:'35px', background: 'rgba(255, 255, 255, 0.05)', color: '#fff', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '10px', cursor: 'pointer', display:'flex', alignItems:'center', justifyContent:'center' },
