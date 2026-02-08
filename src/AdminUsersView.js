@@ -3,33 +3,88 @@ import API from './api';
 
 const AdminUsersView = ({ currentUser }) => {
     const [users, setUsers] = useState([]);
-    const [showAddForm, setShowAddForm] = useState(false);
-    const [newUser, setNewUser] = useState({ name: '', email: '', phone: '', password: '', role: 'company' });
+    const [showForm, setShowForm] = useState(false); // للتحكم في ظهور الفورم
+    const [isEditing, setIsEditing] = useState(false); // هل بنعدل ولا بنضيف جديد؟
+    
+    // البيانات اللي بتظهر في الفورم
+    const [userData, setUserData] = useState({ 
+        id: null, name: '', email: '', phone: '', password: '', role: 'company' 
+    });
+    
     const [searchTerm, setSearchTerm] = useState("");
 
+    // دالة جلب المستخدمين
     const fetchUsers = () => {
         API.get('/users').then(res => setUsers(res.data)).catch(() => {});
     };
 
     useEffect(() => { fetchUsers(); }, []);
 
-    // ✅ دالة إضافة مستخدم/شركة جديد
-    const handleCreateUser = (e) => {
-        e.preventDefault();
-        API.post('/admin/add-user', newUser)
-            .then(res => {
-                if (res.data.status === 'Success') {
-                    alert("User/Company Created Successfully! 🎉");
-                    setShowAddForm(false);
-                    setNewUser({ name: '', email: '', phone: '', password: '', role: 'company' });
-                    fetchUsers();
-                } else {
-                    alert(res.data.message);
-                }
-            });
+    // ✅ 1. دالة تجهيز الفورم للإضافة (جديد)
+    const openAddForm = () => {
+        setUserData({ id: null, name: '', email: '', phone: '', password: '', role: 'company' });
+        setIsEditing(false);
+        setShowForm(true);
     };
 
-    // ✅ دالة حذف المستخدم
+    // ✅ 2. دالة تجهيز الفورم للتعديل (بناخد بيانات العضو ونحطها في الفورم)
+    const openEditForm = (user) => {
+        setUserData({ 
+            id: user.id, 
+            name: user.name, 
+            email: user.email, 
+            phone: user.phone || '', 
+            password: '', // بنسيب الباسورد فاضي عشان لو مش عايز يغيره
+            role: user.role 
+        });
+        setIsEditing(true);
+        setShowForm(true);
+        
+        // سكرول لفوق عشان يشوف الفورم
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // ✅ 3. دالة الحفظ (بتفرق هل ده تعديل ولا إضافة؟)
+    const handleSaveUser = (e) => {
+        e.preventDefault();
+        
+        if (isEditing) {
+            // --- حالة التعديل (Update) ---
+            const formData = new FormData();
+            formData.append('id', userData.id);
+            formData.append('name', userData.name);
+            formData.append('email', userData.email);
+            formData.append('phone', userData.phone);
+            formData.append('role', userData.role);
+            if(userData.password) formData.append('newPassword', userData.password); // لو كتب باسورد جديد نبعته
+
+            API.put('/user/update', formData)
+               .then(res => {
+                   if (res.data.status === 'Success') {
+                       alert("User Updated Successfully! ✅");
+                       setShowForm(false);
+                       fetchUsers();
+                   } else {
+                       alert(res.data.message || "Failed to update");
+                   }
+               });
+
+        } else {
+            // --- حالة الإضافة (Create) ---
+            API.post('/admin/add-user', userData)
+               .then(res => {
+                   if (res.data.status === 'Success') {
+                       alert("User Created Successfully! 🎉");
+                       setShowForm(false);
+                       fetchUsers();
+                   } else {
+                       alert(res.data.message);
+                   }
+               });
+        }
+    };
+
+    // دالة الحذف
     const handleDelete = (id) => {
         if (window.confirm("⚠️ Are you sure you want to delete this user? This action cannot be undone.")) {
             API.delete(`/user/delete/${id}`)
@@ -38,20 +93,10 @@ const AdminUsersView = ({ currentUser }) => {
                         alert("User Deleted ✅");
                         fetchUsers();
                     } else {
-                        alert(res.data.message || "Error deleting user");
+                        alert(res.data.message);
                     }
                 })
                 .catch(() => alert("Connection Error"));
-        }
-    };
-
-    // ✅ دالة تغيير الرتبة (Role)
-    const handleRoleChange = (id, newRole) => {
-        if (window.confirm(`Change role to ${newRole}?`)) {
-            // ملاحظة: تأكد إن عندك في السيرفر مسار لتحديث الرتبة، أو استخدم مسار التحديث العادي
-            // لو مش موجود، ممكن نستخدم مسار التحديث العام /user/update
-            // هنا بفترض إنك عندك مسار مخصص أو بتستخدم التحديث العام
-            alert("Role update feature requires API implementation or use general update endpoint.");
         }
     };
 
@@ -66,12 +111,14 @@ const AdminUsersView = ({ currentUser }) => {
             <div style={styles.header}>
                 <div>
                     <h2 style={{ margin: 0, color: 'white' }}>👮‍♂️ User Management</h2>
-                    <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>View and manage all registered members.</p>
+                    <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Manage members, companies, and roles.</p>
                 </div>
                 
-                <div style={{display:'flex', gap:'15px'}}>
-                    <button onClick={() => setShowAddForm(!showAddForm)} style={{...styles.actionBtn, background:'#00e676', color:'#050810'}}>
-                        {showAddForm ? 'Cancel' : '➕ Add User/Company'}
+                <div style={{display:'flex', gap:'15px', flexWrap:'wrap'}}>
+                    {/* زرار التبديل بين الإضافة والإغلاق */}
+                    <button onClick={showForm ? () => setShowForm(false) : openAddForm} 
+                            style={{...styles.actionBtn, background: showForm ? '#ff6b6b' : '#00e676', color: showForm ? 'white' : '#050810'}}>
+                        {showForm ? 'Cancel' : '➕ Add User'}
                     </button>
                     <input
                         placeholder="🔍 Search..."
@@ -82,23 +129,44 @@ const AdminUsersView = ({ currentUser }) => {
                 </div>
             </div>
 
-            {/* ✅ فورم إضافة شركة/مستخدم جديد */}
-            {showAddForm && (
-                <form onSubmit={handleCreateUser} style={{background:'rgba(255,255,255,0.05)', padding:'20px', borderRadius:'15px', marginBottom:'30px', border:'1px solid #4facfe'}}>
-                    <h4 style={{color:'#4facfe', marginTop:0}}>Create New Account</h4>
-                    <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px'}}>
-                        <input placeholder="Name (e.g. Vodafone)" value={newUser.name} onChange={e=>setNewUser({...newUser, name: e.target.value})} style={styles.sidebarInput} required />
-                        <input placeholder="Email" value={newUser.email} onChange={e=>setNewUser({...newUser, email: e.target.value})} style={styles.sidebarInput} required />
-                        <input placeholder="Phone" value={newUser.phone} onChange={e=>setNewUser({...newUser, phone: e.target.value})} style={styles.sidebarInput} />
-                        <input placeholder="Password" value={newUser.password} onChange={e=>setNewUser({...newUser, password: e.target.value})} style={styles.sidebarInput} required />
-                        <select value={newUser.role} onChange={e=>setNewUser({...newUser, role: e.target.value})} style={styles.sidebarInput}>
-                            <option value="company">🏢 Company</option>
-                            <option value="instructor">🎓 Instructor</option>
-                            <option value="student">👨‍🎓 Student</option>
-                            <option value="admin">🛡️ Admin</option>
-                        </select>
+            {/* ✅ الفورم الذكي (بيظهر للإضافة أو التعديل) */}
+            {showForm && (
+                <form onSubmit={handleSaveUser} style={styles.formContainer}>
+                    <h4 style={{color:'#4facfe', marginTop:0, marginBottom:'20px', borderBottom:'1px solid rgba(255,255,255,0.1)', paddingBottom:'10px'}}>
+                        {isEditing ? `✏️ Edit User: ${userData.name}` : '✨ Create New Account'}
+                    </h4>
+                    
+                    <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
+                        <div>
+                            <label style={styles.label}>Full Name</label>
+                            <input placeholder="Ex: Vodafone Egypt" value={userData.name} onChange={e=>setUserData({...userData, name: e.target.value})} style={styles.sidebarInput} required />
+                        </div>
+                        <div>
+                            <label style={styles.label}>Email Address</label>
+                            <input placeholder="Ex: hr@vodafone.com" value={userData.email} onChange={e=>setUserData({...userData, email: e.target.value})} style={styles.sidebarInput} required />
+                        </div>
+                        <div>
+                            <label style={styles.label}>Phone / WhatsApp</label>
+                            <input placeholder="Ex: 010xxxxxxx" value={userData.phone} onChange={e=>setUserData({...userData, phone: e.target.value})} style={styles.sidebarInput} />
+                        </div>
+                        <div>
+                            <label style={styles.label}>{isEditing ? "New Password (Optional)" : "Password"}</label>
+                            <input type="password" placeholder={isEditing ? "Leave blank to keep current" : "Enter password"} value={userData.password} onChange={e=>setUserData({...userData, password: e.target.value})} style={styles.sidebarInput} required={!isEditing} />
+                        </div>
+                        <div style={{gridColumn: '1 / -1'}}>
+                            <label style={styles.label}>Role / Permission</label>
+                            <select value={userData.role} onChange={e=>setUserData({...userData, role: e.target.value})} style={styles.sidebarInput}>
+                                <option value="company">🏢 Company (Recruiter)</option>
+                                <option value="instructor">🎓 Instructor</option>
+                                <option value="student">👨‍🎓 Student</option>
+                                <option value="admin">🛡️ Admin</option>
+                            </select>
+                        </div>
                     </div>
-                    <button type="submit" style={{...styles.continueBtn, marginTop:'15px', width:'auto', padding:'10px 30px'}}>Create Account</button>
+                    
+                    <button type="submit" style={{...styles.continueBtn, marginTop:'20px'}}>
+                        {isEditing ? "Save Changes 💾" : "Create Account 🚀"}
+                    </button>
                 </form>
             )}
 
@@ -107,27 +175,28 @@ const AdminUsersView = ({ currentUser }) => {
                     <thead>
                         <tr style={{ textAlign: 'left', color: '#94a3b8' }}>
                             <th style={styles.th}>Name</th>
-                            <th style={styles.th}>Contact Info</th>
-                            <th style={styles.th}>Phone (WhatsApp)</th>
+                            <th style={styles.th}>Contact</th>
                             <th style={styles.th}>Role</th>
-                            <th style={styles.th}>Actions</th>
+                            <th style={styles.th}>Actions</th> {/* ✅ العمود ده كان ناقص */}
                         </tr>
                     </thead>
                     <tbody>
                         {filteredUsers.map(user => (
                             <tr key={user.id} style={styles.tr}>
                                 <td style={styles.td}>
-                                    <div style={{ fontWeight: 'bold', color: 'white' }}>{user.name}</div>
-                                    <small style={{ color: '#64748b' }}>Joined: {new Date(user.created_at).toLocaleDateString()}</small>
+                                    <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                                        <div style={{ width: '35px', height: '35px', borderRadius: '50%', background: '#333', overflow: 'hidden' }}>
+                                            {user.profile_pic ? <img src={user.profile_pic} alt="P" style={{ width: '100%', height: '100%' }} /> : <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}>{user.name.charAt(0)}</div>}
+                                        </div>
+                                        <div>
+                                            <div style={{ fontWeight: 'bold', color: 'white' }}>{user.name}</div>
+                                            <small style={{color:'#64748b'}}>Joined: {new Date(user.created_at).toLocaleDateString()}</small>
+                                        </div>
+                                    </div>
                                 </td>
-                                <td style={styles.td}>{user.email}</td>
-
                                 <td style={styles.td}>
-                                    {user.phone ? (
-                                        <a href={`https://wa.me/2${user.phone}`} target="_blank" rel="noreferrer" style={styles.whatsappLink} title="Click to chat on WhatsApp">
-                                            {user.phone} <span style={{ fontSize: '1.1rem' }}>💬</span>
-                                        </a>
-                                    ) : <span style={{ color: '#475569', fontStyle: 'italic' }}>Not provided</span>}
+                                    <div style={{color:'#ccc'}}>{user.email}</div>
+                                    {user.phone && <div style={{color:'#64748b', fontSize:'0.8rem'}}>📞 {user.phone}</div>}
                                 </td>
 
                                 <td style={styles.td}>
@@ -142,7 +211,16 @@ const AdminUsersView = ({ currentUser }) => {
 
                                 <td style={styles.td}>
                                     {user.id !== currentUser.id ? (
-                                        <button onClick={() => handleDelete(user.id)} style={styles.deleteBtn} title="Delete User">🗑️ Delete</button>
+                                        <div style={{display:'flex', gap:'8px'}}>
+                                            {/* ✅ زرار التعديل */}
+                                            <button onClick={() => openEditForm(user)} style={{...styles.iconBtn, background: 'rgba(253, 224, 71, 0.1)', color: '#fde047'}} title="Edit User">
+                                                ✏️ Edit
+                                            </button>
+                                            {/* زرار الحذف */}
+                                            <button onClick={() => handleDelete(user.id)} style={{...styles.iconBtn, background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444'}} title="Delete User">
+                                                🗑️
+                                            </button>
+                                        </div>
                                     ) : (
                                         <span style={{ color: '#4facfe', fontSize: '0.8rem', fontWeight: 'bold' }}>⭐ YOU</span>
                                     )}
@@ -163,16 +241,17 @@ const styles = {
     container: { maxWidth: '1100px', margin: '0 auto', paddingBottom: '50px' },
     header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '20px', flexWrap:'wrap', gap:'15px' },
     searchInput: { padding: '10px 15px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', color: 'white', outline: 'none', width: '250px', fontSize: '0.9rem' },
+    formContainer: { background: 'rgba(30, 41, 59, 0.6)', padding: '25px', borderRadius: '16px', marginBottom: '30px', border: '1px solid rgba(79, 172, 254, 0.3)', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', animation: 'fadeIn 0.3s' },
+    label: { display: 'block', color: '#94a3b8', fontSize: '0.85rem', marginBottom: '8px', fontWeight: 'bold' },
     tableWrapper: { backgroundColor: 'rgba(30, 41, 59, 0.6)', borderRadius: '15px', padding: '20px', overflowX: 'auto', border: '1px solid rgba(255,255,255,0.05)' },
     table: { width: '100%', borderCollapse: 'collapse', color: '#ccc' },
     th: { padding: '15px', borderBottom: '1px solid rgba(255,255,255,0.1)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' },
     tr: { borderBottom: '1px solid rgba(255,255,255,0.03)', transition: '0.2s' },
-    td: { padding: '15px', fontSize: '0.9rem' },
-    whatsappLink: { color: '#25D366', textDecoration: 'none', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '5px', transition: '0.2s', padding: '5px 0' },
+    td: { padding: '15px', fontSize: '0.9rem', verticalAlign: 'middle' },
     roleBadge: { padding: '4px 10px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 'bold', letterSpacing: '0.5px' },
-    deleteBtn: { background: 'rgba(255, 99, 99, 0.1)', color: '#ff6b6b', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s', display: 'flex', alignItems: 'center' },
+    iconBtn: { border: 'none', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s', display: 'flex', alignItems: 'center', gap: '5px', fontSize:'0.8rem' },
     actionBtn: { padding: '10px 20px', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize:'0.9rem' },
-    sidebarInput: { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', outline: 'none' },
+    sidebarInput: { width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', outline: 'none', boxSizing: 'border-box' },
     continueBtn: { width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: 'linear-gradient(90deg, #4facfe, #00f2fe)', color: '#050810', fontWeight: '900', cursor: 'pointer', transition: '0.3s' },
 };
 
