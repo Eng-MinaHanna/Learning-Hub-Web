@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import API from './api'; 
-import './App.css'; // ✅ Ensure App.css exists in the src folder!
+import './App.css'; 
 import AddCourseModal from './AddCourseModal';
 import CourseDetailsModal from './CourseDetailsModal';
 import EditActivityModal from './EditActivityModal';
@@ -9,14 +9,12 @@ import LandingPage from './LandingPage';
 import CalendarView from './CalendarView';
 import CommunityView from './CommunityView';
 import NotificationsModal from './NotificationsModal';
-import SponsorsPartnersBoard from './SponsorsPartnersBoard'; // ✅ Imported
-
-// ✅ Import components from separate files
+import SponsorsPartnersBoard from './SponsorsPartnersBoard'; 
 import AdminUsersView from './AdminUsersView';
 import SettingsView from './SettingsView';
 import LeaderboardView from './LeaderboardView';
-// ✅ Import the new Sidebar component
 import Sidebar from './Sidebar';
+import LoadingEffect from './LoadingEffect'; // ✅ 1. تم استيراد مكون التحميل
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -155,11 +153,11 @@ function App() {
     );
   }
 
+  // ✅ 2. استخدام LoadingEffect هنا بدلاً من الكود القديم
   if (loading && activities.length === 0) {
       return (
           <div style={styles.loadingContainer}>
-              <div style={styles.spinner}></div>
-              <h3 style={{color: '#4facfe', marginTop: '20px', letterSpacing: '2px', fontFamily: 'monospace'}}>INITIALIZING SYSTEM...</h3>
+              <LoadingEffect message="INITIALIZING SYSTEM..." />
           </div>
       );
   }
@@ -178,7 +176,7 @@ function App() {
 
       <div style={{ display: 'flex', minHeight: '100vh', position: 'relative' }}>
         
-        {/* ✅ Connected Sidebar Component */}
+        {/* Connected Sidebar Component */}
         <Sidebar 
           isOpen={isSidebarOpen}
           isMobile={isMobile}
@@ -330,8 +328,8 @@ const styles = {
   appContainer: { fontFamily: "'Cairo', sans-serif", backgroundColor: '#050810', color: 'white', minHeight: '100vh', position: 'relative', overflowX: 'hidden' },
   backgroundGrid: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundImage: 'radial-gradient(rgba(79, 172, 254, 0.03) 2px, transparent 2px)', backgroundSize: '50px 50px', zIndex: 0 },
   loadingContainer: { position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: '#050810', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
-  spinner: { width: '50px', height: '50px', border: '5px solid rgba(79, 172, 254, 0.2)', borderTop: '5px solid #4facfe', borderRadius: '50%', animation: 'spin 1s linear infinite' },
-  // Sidebar styles removed from here as they are now in Sidebar.js
+  // ⚠️ تم حذف الـ spinner من هنا لأنه انتقل لملف LoadingEffect
+  
   mainArea: { padding: '40px 20px', transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)', position: 'relative', zIndex: 1, minHeight: '100vh' },
   pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', flexWrap: 'wrap', gap: '20px', paddingLeft: '70px', marginTop: '10px' },
   welcomeText: { color: 'white', margin: 0, fontSize: '1.6rem', fontWeight: '800' },
