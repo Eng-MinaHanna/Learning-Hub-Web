@@ -3,60 +3,56 @@ import API from './api';
 
 const AdminUsersView = ({ currentUser }) => {
     const [users, setUsers] = useState([]);
-    const [showForm, setShowForm] = useState(false); // للتحكم في ظهور الفورم
-    const [isEditing, setIsEditing] = useState(false); // هل بنعدل ولا بنضيف جديد؟
+    const [showForm, setShowForm] = useState(false); 
+    const [isEditing, setIsEditing] = useState(false);
     
-    // البيانات اللي بتظهر في الفورم
+    // بيانات المستخدم للفورم (سواء جديد أو تعديل)
     const [userData, setUserData] = useState({ 
         id: null, name: '', email: '', phone: '', password: '', role: 'company' 
     });
     
     const [searchTerm, setSearchTerm] = useState("");
 
-    // دالة جلب المستخدمين
     const fetchUsers = () => {
         API.get('/users').then(res => setUsers(res.data)).catch(() => {});
     };
 
     useEffect(() => { fetchUsers(); }, []);
 
-    // ✅ 1. دالة تجهيز الفورم للإضافة (جديد)
+    // فتح فورم الإضافة
     const openAddForm = () => {
         setUserData({ id: null, name: '', email: '', phone: '', password: '', role: 'company' });
         setIsEditing(false);
         setShowForm(true);
     };
 
-    // ✅ 2. دالة تجهيز الفورم للتعديل (بناخد بيانات العضو ونحطها في الفورم)
+    // فتح فورم التعديل
     const openEditForm = (user) => {
         setUserData({ 
             id: user.id, 
             name: user.name, 
             email: user.email, 
             phone: user.phone || '', 
-            password: '', // بنسيب الباسورد فاضي عشان لو مش عايز يغيره
+            password: '', 
             role: user.role 
         });
         setIsEditing(true);
         setShowForm(true);
-        
-        // سكرول لفوق عشان يشوف الفورم
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // ✅ 3. دالة الحفظ (بتفرق هل ده تعديل ولا إضافة؟)
+    // حفظ البيانات (إضافة أو تعديل)
     const handleSaveUser = (e) => {
         e.preventDefault();
         
         if (isEditing) {
-            // --- حالة التعديل (Update) ---
             const formData = new FormData();
             formData.append('id', userData.id);
             formData.append('name', userData.name);
             formData.append('email', userData.email);
             formData.append('phone', userData.phone);
             formData.append('role', userData.role);
-            if(userData.password) formData.append('newPassword', userData.password); // لو كتب باسورد جديد نبعته
+            if(userData.password) formData.append('newPassword', userData.password);
 
             API.put('/user/update', formData)
                .then(res => {
@@ -70,7 +66,6 @@ const AdminUsersView = ({ currentUser }) => {
                });
 
         } else {
-            // --- حالة الإضافة (Create) ---
             API.post('/admin/add-user', userData)
                .then(res => {
                    if (res.data.status === 'Success') {
@@ -84,13 +79,12 @@ const AdminUsersView = ({ currentUser }) => {
         }
     };
 
-    // دالة الحذف
     const handleDelete = (id) => {
-        if (window.confirm("⚠️ Are you sure you want to delete this user? This action cannot be undone.")) {
+        if (window.confirm("⚠️ Are you sure? This cannot be undone.")) {
             API.delete(`/user/delete/${id}`)
                 .then(res => {
                     if (res.data.status === "Success") {
-                        alert("User Deleted ✅");
+                        alert("Deleted ✅");
                         fetchUsers();
                     } else {
                         alert(res.data.message);
@@ -115,7 +109,6 @@ const AdminUsersView = ({ currentUser }) => {
                 </div>
                 
                 <div style={{display:'flex', gap:'15px', flexWrap:'wrap'}}>
-                    {/* زرار التبديل بين الإضافة والإغلاق */}
                     <button onClick={showForm ? () => setShowForm(false) : openAddForm} 
                             style={{...styles.actionBtn, background: showForm ? '#ff6b6b' : '#00e676', color: showForm ? 'white' : '#050810'}}>
                         {showForm ? 'Cancel' : '➕ Add User'}
@@ -129,7 +122,6 @@ const AdminUsersView = ({ currentUser }) => {
                 </div>
             </div>
 
-            {/* ✅ الفورم الذكي (بيظهر للإضافة أو التعديل) */}
             {showForm && (
                 <form onSubmit={handleSaveUser} style={styles.formContainer}>
                     <h4 style={{color:'#4facfe', marginTop:0, marginBottom:'20px', borderBottom:'1px solid rgba(255,255,255,0.1)', paddingBottom:'10px'}}>
@@ -139,24 +131,24 @@ const AdminUsersView = ({ currentUser }) => {
                     <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
                         <div>
                             <label style={styles.label}>Full Name</label>
-                            <input placeholder="Ex: Vodafone Egypt" value={userData.name} onChange={e=>setUserData({...userData, name: e.target.value})} style={styles.sidebarInput} required />
+                            <input placeholder="Name" value={userData.name} onChange={e=>setUserData({...userData, name: e.target.value})} style={styles.sidebarInput} required />
                         </div>
                         <div>
                             <label style={styles.label}>Email Address</label>
-                            <input placeholder="Ex: hr@vodafone.com" value={userData.email} onChange={e=>setUserData({...userData, email: e.target.value})} style={styles.sidebarInput} required />
+                            <input placeholder="Email" value={userData.email} onChange={e=>setUserData({...userData, email: e.target.value})} style={styles.sidebarInput} required />
                         </div>
                         <div>
-                            <label style={styles.label}>Phone / WhatsApp</label>
-                            <input placeholder="Ex: 010xxxxxxx" value={userData.phone} onChange={e=>setUserData({...userData, phone: e.target.value})} style={styles.sidebarInput} />
+                            <label style={styles.label}>Phone</label>
+                            <input placeholder="Phone" value={userData.phone} onChange={e=>setUserData({...userData, phone: e.target.value})} style={styles.sidebarInput} />
                         </div>
                         <div>
                             <label style={styles.label}>{isEditing ? "New Password (Optional)" : "Password"}</label>
-                            <input type="password" placeholder={isEditing ? "Leave blank to keep current" : "Enter password"} value={userData.password} onChange={e=>setUserData({...userData, password: e.target.value})} style={styles.sidebarInput} required={!isEditing} />
+                            <input type="password" placeholder={isEditing ? "Leave blank to keep" : "Password"} value={userData.password} onChange={e=>setUserData({...userData, password: e.target.value})} style={styles.sidebarInput} required={!isEditing} />
                         </div>
                         <div style={{gridColumn: '1 / -1'}}>
-                            <label style={styles.label}>Role / Permission</label>
+                            <label style={styles.label}>Role</label>
                             <select value={userData.role} onChange={e=>setUserData({...userData, role: e.target.value})} style={styles.sidebarInput}>
-                                <option value="company">🏢 Company (Recruiter)</option>
+                                <option value="company">🏢 Company</option>
                                 <option value="instructor">🎓 Instructor</option>
                                 <option value="student">👨‍🎓 Student</option>
                                 <option value="admin">🛡️ Admin</option>
@@ -177,7 +169,7 @@ const AdminUsersView = ({ currentUser }) => {
                             <th style={styles.th}>Name</th>
                             <th style={styles.th}>Contact</th>
                             <th style={styles.th}>Role</th>
-                            <th style={styles.th}>Actions</th> {/* ✅ العمود ده كان ناقص */}
+                            <th style={styles.th}>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -198,7 +190,6 @@ const AdminUsersView = ({ currentUser }) => {
                                     <div style={{color:'#ccc'}}>{user.email}</div>
                                     {user.phone && <div style={{color:'#64748b', fontSize:'0.8rem'}}>📞 {user.phone}</div>}
                                 </td>
-
                                 <td style={styles.td}>
                                     <span style={{
                                         ...styles.roleBadge,
@@ -208,18 +199,11 @@ const AdminUsersView = ({ currentUser }) => {
                                         {user.role.toUpperCase()}
                                     </span>
                                 </td>
-
                                 <td style={styles.td}>
-                                    {user.id !== currentUser.id ? (
+                                    {user.id !== currentUser?.id ? (
                                         <div style={{display:'flex', gap:'8px'}}>
-                                            {/* ✅ زرار التعديل */}
-                                            <button onClick={() => openEditForm(user)} style={{...styles.iconBtn, background: 'rgba(253, 224, 71, 0.1)', color: '#fde047'}} title="Edit User">
-                                                ✏️ Edit
-                                            </button>
-                                            {/* زرار الحذف */}
-                                            <button onClick={() => handleDelete(user.id)} style={{...styles.iconBtn, background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444'}} title="Delete User">
-                                                🗑️
-                                            </button>
+                                            <button onClick={() => openEditForm(user)} style={{...styles.iconBtn, background: 'rgba(253, 224, 71, 0.1)', color: '#fde047'}} title="Edit">✏️</button>
+                                            <button onClick={() => handleDelete(user.id)} style={{...styles.iconBtn, background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444'}} title="Delete">🗑️</button>
                                         </div>
                                     ) : (
                                         <span style={{ color: '#4facfe', fontSize: '0.8rem', fontWeight: 'bold' }}>⭐ YOU</span>
@@ -229,9 +213,6 @@ const AdminUsersView = ({ currentUser }) => {
                         ))}
                     </tbody>
                 </table>
-                {filteredUsers.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No users found matching your search.</div>
-                )}
             </div>
         </div>
     );
