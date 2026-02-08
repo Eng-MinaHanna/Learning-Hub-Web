@@ -6,11 +6,11 @@ import EditActivityModal from './EditActivityModal';
 import AuthPage from './AuthPage';
 import LandingPage from './LandingPage';
 import CalendarView from './CalendarView';
-import SettingsView from './SettingsView';
 import CommunityView from './CommunityView';
-import LeaderboardView from './LeaderboardView';
 import AdminUsersView from './AdminUsersView';
 import NotificationsModal from './NotificationsModal';
+
+// ⚠️ لاحظ: شيلنا استيراد SettingsView و LeaderboardView عشان هنكتبهم تحت بالكود الجديد المحدث
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -195,17 +195,14 @@ function App() {
             <NavBtn icon="📊" label="Dashboard" active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} />
             <NavBtn icon="📅" label="Schedule" active={currentView === 'schedule'} onClick={() => setCurrentView('schedule')} />
             
-            {/* ✅ 1. تغيير الاسم من Leaderboard لـ Top Performances */}
             <NavBtn icon="🏆" label="Top Performances" active={currentView === 'leaderboard'} onClick={() => setCurrentView('leaderboard')} />
             
-            {/* ✅ 3. إضافة تابة التيم */}
             <NavBtn icon="🎖️" label="Our Team" active={currentView === 'team'} onClick={() => setCurrentView('team')} />
 
             {user?.role === 'admin' && <NavBtn icon="👥" label="Admin Panel" active={currentView === 'users'} onClick={() => setCurrentView('users')} />}
             <NavBtn icon="🌍" label="Community" active={currentView === 'community'} onClick={() => setCurrentView('community')} />
             <NavBtn icon="⚙️" label="Settings" active={currentView === 'settings'} onClick={() => setCurrentView('settings')} />
             
-            {/* ✅ 2. الفاصل وزر الموقع الرسمي في الأسفل */}
             <div style={{marginTop: 'auto', paddingTop: '10px'}}>
                 <div style={{...styles.divider, margin: '5px 0'}}></div>
                 <NavBtn 
@@ -279,12 +276,10 @@ function App() {
             </div>
           )}
 
-          {/* ✅ 4. عرض صفحة التيم الجديدة */}
           {currentView === 'team' && <TeamView />}
-
+          {currentView === 'leaderboard' && <LeaderboardView />}
           {currentView === 'home' && <LandingPage user={user} onGetStarted={() => setCurrentView('dashboard')} />}
           {currentView === 'schedule' && <CalendarView onOpenCourse={(c)=>setSelectedCourse(activities.find(a=>a.id===c))} />}
-          {currentView === 'leaderboard' && <LeaderboardView />}
           {currentView === 'users' && <AdminUsersView currentUser={user} />}
           {currentView === 'community' && <CommunityView />}
           {currentView === 'settings' && <SettingsView user={user} onUpdateUser={handleUserUpdate} />}
@@ -302,15 +297,106 @@ function App() {
   );
 }
 
-// ✅ مكون TeamView الجديد
+// ✅ 1. SettingsView المحدثة: إضافة خانات LinkedIn و CV
+const SettingsView = ({ user, onUpdateUser }) => {
+  const [formData, setFormData] = useState({
+      name: user.name || '', email: user.email || '', phone: user.phone || '',
+      oldPassword: '', newPassword: '', 
+      linkedin: user.linkedin || '', cv_link: user.cv_link || '', job_title: user.job_title || ''
+  });
+  const [avatar, setAvatar] = useState(null);
+
+  const handleSubmit = async (e) => {
+      e.preventDefault();
+      const data = new FormData();
+      Object.keys(formData).forEach(key => data.append(key, formData[key]));
+      data.append('id', user.id);
+      if (avatar) data.append('avatar', avatar);
+
+      try {
+          const res = await API.put('/user/update', data);
+          if (res.data.status === 'Success') {
+              alert("Profile Updated! ✅");
+              onUpdateUser({ ...formData, profile_pic: res.data.newProfilePic || user.profile_pic });
+          } else { alert(res.data.message || "Failed"); }
+      } catch (e) { alert("Error updating"); }
+  };
+
+  return (
+      <div style={{ maxWidth: '600px', margin: '0 auto', background: 'rgba(30, 41, 59, 0.5)', padding: '30px', borderRadius: '20px' }}>
+          <h2 style={{ color: '#4facfe', marginBottom: '20px' }}>⚙️ Profile Settings</h2>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <div style={{textAlign:'center', marginBottom:'10px'}}>
+                  <div style={{width:'80px', height:'80px', borderRadius:'50%', overflow:'hidden', margin:'0 auto', border:'2px solid #4facfe'}}>
+                      {avatar ? <img src={URL.createObjectURL(avatar)} style={{width:'100%', height:'100%', objectFit:'cover'}} alt="P"/> : <img src={user.profile_pic} style={{width:'100%', height:'100%', objectFit:'cover'}} alt="P"/>}
+                  </div>
+                  <input type="file" onChange={e => setAvatar(e.target.files[0])} style={{marginTop:'10px', fontSize:'0.8rem'}} />
+              </div>
+              <input placeholder="Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} style={styles.sidebarInput} />
+              
+              {/* حقول التميز الجديدة */}
+              <input placeholder="Job Title (e.g. React Developer)" value={formData.job_title} onChange={e => setFormData({...formData, job_title: e.target.value})} style={styles.sidebarInput} />
+              <input placeholder="LinkedIn Profile URL" value={formData.linkedin} onChange={e => setFormData({...formData, linkedin: e.target.value})} style={styles.sidebarInput} />
+              <input placeholder="CV / Portfolio Link" value={formData.cv_link} onChange={e => setFormData({...formData, cv_link: e.target.value})} style={styles.sidebarInput} />
+              
+              <input placeholder="Email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} style={styles.sidebarInput} disabled />
+              <input placeholder="Phone" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} style={styles.sidebarInput} />
+              <hr style={{borderColor:'rgba(255,255,255,0.1)', width:'100%'}}/>
+              <input type="password" placeholder="Old Password" value={formData.oldPassword} onChange={e => setFormData({...formData, oldPassword: e.target.value})} style={styles.sidebarInput} />
+              <input type="password" placeholder="New Password" value={formData.newPassword} onChange={e => setFormData({...formData, newPassword: e.target.value})} style={styles.sidebarInput} />
+              <button type="submit" style={styles.continueBtn}>Update Profile</button>
+          </form>
+      </div>
+  );
+};
+
+// ✅ 2. LeaderboardView المحدثة: عرض الـ LinkedIn و CV للشركات
+const LeaderboardView = () => {
+  const [users, setUsers] = useState([]);
+  useEffect(() => { API.get('/leaderboard').then(res => setUsers(res.data)).catch(() => {}); }, []);
+
+  return (
+      <div style={{ maxWidth: '800px', margin: '0 auto', animation: 'fadeIn 0.5s ease' }}>
+          <h2 style={{ textAlign: 'center', marginBottom: '30px', color: '#ffd700', fontSize: '2rem' }}>🏆 Top Talent & Performers</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              {users.map((u, idx) => {
+                  const totalPoints = (u.video_points || 0) + (u.quiz_points || 0) + (u.post_points || 0) + (u.comment_points || 0);
+                  return (
+                      <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: idx === 0 ? 'linear-gradient(90deg, rgba(255, 215, 0, 0.2), rgba(30, 41, 59, 0.6))' : 'rgba(30, 41, 59, 0.6)', padding: '15px 25px', borderRadius: '15px', border: idx === 0 ? '1px solid #ffd700' : '1px solid rgba(255,255,255,0.05)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                              <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: idx === 0 ? '#ffd700' : idx === 1 ? '#c0c0c0' : idx === 2 ? '#cd7f32' : '#64748b', width: '30px' }}>#{idx + 1}</div>
+                              <div style={{ width: '50px', height: '50px', borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.1)' }}>
+                                  {u.profile_pic ? <img src={u.profile_pic} alt="P" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', background: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{u.name.charAt(0)}</div>}
+                              </div>
+                              <div>
+                                  <div style={{ fontWeight: 'bold', fontSize: '1.1rem', color: 'white' }}>{u.name} {idx === 0 && '👑'}</div>
+                                  <div style={{ fontSize: '0.8rem', color: '#4facfe' }}>{u.job_title || 'Student Member'}</div>
+                              </div>
+                          </div>
+                          
+                          <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
+                              {/* أزرار التواصل للشركات */}
+                              {u.linkedin && <a href={u.linkedin} target="_blank" rel="noreferrer" title="LinkedIn Profile" style={{fontSize:'1.5rem', textDecoration:'none', cursor:'pointer'}}>🔗</a>}
+                              {u.cv_link && <a href={u.cv_link} target="_blank" rel="noreferrer" title="View CV" style={{fontSize:'1.5rem', textDecoration:'none', cursor:'pointer'}}>📄</a>}
+                              
+                              <div style={{ textAlign: 'right', borderLeft:'1px solid rgba(255,255,255,0.1)', paddingLeft:'15px' }}>
+                                  <div style={{ fontWeight: '900', color: '#4facfe', fontSize: '1.2rem' }}>{totalPoints}</div>
+                                  <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>POINTS</div>
+                              </div>
+                          </div>
+                      </div>
+                  );
+              })}
+          </div>
+      </div>
+  );
+};
+
+// ✅ 3. TeamView (كان ناقص في الكود بتاعك)
 const TeamView = () => {
     const [team, setTeam] = useState([]);
-    const [loading, setLoading] = useState(true);
-
     useEffect(() => {
-        API.get('/team')
-           .then(res => { setTeam(res.data); setLoading(false); })
-           .catch(() => setLoading(false));
+        API.get('/team').then(res => setTeam(res.data)).catch(() => {});
     }, []);
 
     const admins = team.filter(m => m.role === 'admin');
@@ -326,12 +412,9 @@ const TeamView = () => {
         </div>
     );
 
-    if (loading) return <div style={{textAlign:'center', padding:'50px', color:'#aaa'}}>Loading Team...</div>;
-
     return (
         <div style={{paddingBottom: '50px', animation: 'fadeIn 0.5s ease'}}>
             <h2 style={{color: 'white', marginBottom: '40px', borderLeft: '5px solid #4facfe', paddingLeft: '15px', fontSize: '2rem'}}>🏆 Meet Our Heroes</h2>
-            
             {admins.length > 0 && (
                 <>
                     <h3 style={{color: '#ffd700', margin: '20px 0 20px', fontSize: '1.4rem', borderBottom: '1px solid rgba(255, 215, 0, 0.2)', paddingBottom: '10px', display: 'inline-block'}}>High Board & Admins</h3>
@@ -340,7 +423,6 @@ const TeamView = () => {
                     </div>
                 </>
             )}
-
             {instructors.length > 0 && (
                 <>
                     <h3 style={{color: '#4facfe', margin: '20px 0 20px', fontSize: '1.4rem', borderBottom: '1px solid rgba(79, 172, 254, 0.2)', paddingBottom: '10px', display: 'inline-block'}}>Technical Instructors</h3>
@@ -411,7 +493,8 @@ const styles = {
   deleteBtnSmall: { width: '35px', height:'35px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '10px', cursor: 'pointer', display:'flex', alignItems:'center', justifyContent:'center' },
   editBtnSmall: { width: '35px', height:'35px', background: 'rgba(255, 255, 255, 0.05)', color: '#fff', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '10px', cursor: 'pointer', display:'flex', alignItems:'center', justifyContent:'center' },
   toggleBtn: { position: 'fixed', zIndex: 3000, background: '#4facfe', color: '#050810', border: 'none', borderRadius: '10px', width: '40px', height: '40px', cursor: 'pointer', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 15px rgba(79,172,254,0.4)', transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)' },
-  fab: { position: 'fixed', bottom: '30px', right: '30px', width: '65px', height: '65px', borderRadius: '22px', background: 'linear-gradient(135deg, #4facfe, #00f2fe)', color: '#050810', fontSize: '35px', border: 'none', cursor: 'pointer', boxShadow: '0 15px 30px rgba(79,172,254,0.5)', zIndex:100, fontWeight: 'bold' }
+  fab: { position: 'fixed', bottom: '30px', right: '30px', width: '65px', height: '65px', borderRadius: '22px', background: 'linear-gradient(135deg, #4facfe, #00f2fe)', color: '#050810', fontSize: '35px', border: 'none', cursor: 'pointer', boxShadow: '0 15px 30px rgba(79,172,254,0.5)', zIndex:100, fontWeight: 'bold' },
+  sidebarInput: { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', outline: 'none' }
 };
 
 export default App;
