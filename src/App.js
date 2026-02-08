@@ -35,7 +35,7 @@ function App() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showAuth, setShowAuth] = useState(false);
   const [loading, setLoading] = useState(true); 
-  const [syncError, setSyncError] = useState(false); // حالة جديدة للخطأ في المزامنة
+  const [syncError, setSyncError] = useState(false); 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
 
@@ -82,11 +82,11 @@ function App() {
   };
 
   const fetchData = async () => {
-    // 🔥 تحسين: لا تظهر التحميل إذا كانت البيانات موجودة فعلاً (عند الرجوع من كورس)
+    // 🔥 تحسين: لا تظهر التحميل إذا كانت البيانات موجودة (تجنب الشاشة الزرقاء عند الـ Back)
     if (activities.length === 0) setLoading(true); 
     setSyncError(false);
 
-    // 🕒 إعداد تايم أوت (المهلة الزمنية) لمدة 15 ثانية
+    // 🕒 إعداد تايم أوت (15 ثانية)
     const timeoutId = setTimeout(() => {
         if (activities.length === 0) { 
             setSyncError(true);
@@ -95,18 +95,19 @@ function App() {
     }, 15000); 
 
     try {
-      // ✅ تعديل: حماية الطلبات الفردية باستخدام .catch لضمان عدم تعليق الـ Promise.all
+      // ✅ تعديل: حماية الطلبات الفردية لضمان عدم تعليق الموقع لو طلب واحد فشل
       const [actsRes, statsRes] = await Promise.all([
         API.get('/activities/all').catch(() => ({ data: [] })),
         (user?.role === 'admin' ? API.get('/stats').catch(() => ({ data: { total_students: 0 } })) : Promise.resolve({ data: null })),
         checkNotifications().catch(() => {})
       ]);
 
-      clearTimeout(timeoutId); // إلغاء المهلة لو الداتا جت
+      clearTimeout(timeoutId);
 
       const data = Array.isArray(actsRes.data) ? actsRes.data : [];
       setActivities(data);
       
+      // بمجرد وصول الأنشطة، نلغي شاشة التحميل فوراً
       setLoading(false);
 
       const totalTracks = data.length;
@@ -122,6 +123,7 @@ function App() {
         setStats({ total_activities: totalTracks, total_workshops: totalWorkshops, total_students: '150+' });
       }
 
+      // جلب البروجرس في الخلفية بدون حظر الواجهة
       if (user?.email && user.role !== 'company' && data.length > 0) {
         const progressPromises = data.map(course => 
            API.get(`/progress/calculate/${course.id}/${user.email}`).catch(() => ({ data: { percent: 0 } }))
@@ -159,7 +161,7 @@ function App() {
     );
   }
 
-  // 🛠️ نافذة الخطأ أو الصيانة الجديدة
+  // 🛠️ نافذة الخطأ أو الصيانة
   if (syncError) {
       return (
           <div style={styles.loadingContainer}>
@@ -169,7 +171,7 @@ function App() {
                     في حاليا مشكله أو صيانة، يرجى الانتظار أو الرجوع إلى الـ <b>Officers</b> إذا استمرت المشكلة.
                   </p>
                   <div style={{display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '20px'}}>
-                      <button onClick={() => window.location.reload()} style={styles.continueBtn}>🔄 Retry Now</button>
+                      <button onClick={() => fetchData()} style={styles.continueBtn}>🔄 Retry Now</button>
                       <button onClick={handleLogout} style={{...styles.continueBtn, background: 'transparent', color: '#fff', border: '1px solid #444'}}>Logout</button>
                   </div>
               </div>
