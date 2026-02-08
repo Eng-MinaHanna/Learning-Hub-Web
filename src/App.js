@@ -158,7 +158,7 @@ function App() {
                     في حاليا مشكله أو صيانة، يرجى الانتظار أو الرجوع إلى الـ <b>Officers</b> إذا استمرت المشكلة.
                   </p>
                   <div style={{display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '20px'}}>
-                      <button onClick={() => window.location.reload()} style={styles.continueBtn}>🔄 Retry Now</button>
+                      <button onClick={() => fetchData()} style={styles.continueBtn}>🔄 Retry Now</button>
                       <button onClick={handleLogout} style={{...styles.continueBtn, background: 'transparent', color: '#fff', border: '1px solid #444'}}>Logout</button>
                   </div>
               </div>
