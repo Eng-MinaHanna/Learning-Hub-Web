@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import API from './api'; // ✅ تم استيراد الـ API
-import './App.css';
+
 const LandingPage = ({ onGetStarted, user }) => {
     // ----------------------------------------------------------------
     // 1️⃣ إعداد البيانات
@@ -87,7 +87,7 @@ const LandingPage = ({ onGetStarted, user }) => {
             </div>
 
             {/* ------------------------------------------------------ */}
-            {/* ✅ 3️⃣ PARTNERS & SPONSORS SECTIONS (Updated Design) */}
+            {/* ✅ 3️⃣ PARTNERS & SPONSORS SECTIONS (Free Form Logos) */}
             {/* ------------------------------------------------------ */}
             
             {/* Partners Section */}
@@ -102,7 +102,7 @@ const LandingPage = ({ onGetStarted, user }) => {
                             rel="noreferrer"
                             style={styles.logoWrapper} 
                             title={partner.name}
-                            className="logo-hover-effect" // ⚠️ مهم جداً: تأكد من إضافة CSS في ملف App.css
+                            className="logo-hover-effect" // ⚠️ مهم جداً لتشغيل الإفكت من App.css
                         >
                             <img src={partner.logo_url} alt={partner.name} style={styles.brandLogo} />
                         </a>
@@ -140,7 +140,7 @@ const LandingPage = ({ onGetStarted, user }) => {
 };
 
 // ------------------------------------------------------
-// ✅ 4️⃣ STYLES (Updated for Glassmorphism Circle)
+// ✅ 4️⃣ STYLES (Updated for Free-Form Logo)
 // ------------------------------------------------------
 const styles = {
     container: {
@@ -222,7 +222,7 @@ const styles = {
         fontSize: '2rem', background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '12px'
     },
     
-    // --- Styles for Partners & Sponsors (DESIGN V2: CIRCLE GLASS) ---
+    // --- Styles for Partners & Sponsors (DESIGN V3: FREE FORM + GLOW) ---
     brandsSection: {
         padding: '60px 20px',
         textAlign: 'center',
@@ -243,37 +243,29 @@ const styles = {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        gap: '30px',
+        gap: '40px', // زودنا المسافة شوية عشان اللوجوهات تاخد راحتها
         flexWrap: 'wrap',
         maxWidth: '1000px',
         margin: '0 auto'
     },
     logoWrapper: {
-        width: '130px',
-        height: '130px',
-        borderRadius: '50%', // ✅ دائري
-        
-        // زجاجي + إطار ذهبي
-        background: 'rgba(255, 255, 255, 0.05)', 
-        backdropFilter: 'blur(8px)',
-        border: '2px solid #ffd700', // ذهبي
-        boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
-        
+        width: '140px',       // مساحة حرة للوجو
+        height: '80px',       // ارتفاع مناسب
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: '20px',
-        transition: 'all 0.4s ease',
+        transition: 'all 0.3s ease',
         cursor: 'pointer',
-        overflow: 'hidden'
+        // ❌ شلنا الخلفية والحدود عشان يكون حر
     },
     brandLogo: {
         maxWidth: '100%',
         maxHeight: '100%',
         objectFit: 'contain',
-        // اللون الفضي/الأبيض اللامع
-        filter: 'grayscale(100%) brightness(2) opacity(0.8)', 
-        transition: 'all 0.4s ease'
+        // ستايل هادي في البداية: شفافية بسيطة + أبيض وأسود خفيف
+        opacity: 0.7, 
+        filter: 'grayscale(100%) brightness(1.5)', 
+        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
     },
     
     footer: {
