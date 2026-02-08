@@ -53,7 +53,27 @@ function App() {
     if (isMobile) setIsSidebarOpen(false);
   }, [currentView, isMobile]);
 
-  // ✅ جلب التنبيهات مع انتظار النتيجة
+  // ✅ 1. تعريف الدوال الأساسية (إصلاح الـ no-undef)
+  const handleOpenCourse = (course) => { 
+    setSelectedCourse(course); 
+    localStorage.setItem('activeCourseId', course?.id); 
+  };
+
+  const handleCloseCourse = () => {
+    setSelectedCourse(null);
+    localStorage.removeItem('activeCourseId'); 
+    fetchData();
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm("⚠️ Confirm Delete?")) {
+      try { 
+        await API.delete(`/activities/delete/${id}`); 
+        fetchData(); 
+      } catch (err) { alert("Error deleting"); }
+    }
+  };
+
   const checkNotifications = async () => {
     if (!user?.id) return;
     try {
@@ -65,14 +85,11 @@ function App() {
   const fetchData = async () => {
     setLoading(true); 
     try {
-      // 1. جلب الأنشطة
       const actsRes = await API.get('/activities/all');
       const data = Array.isArray(actsRes.data) ? actsRes.data : [];
       setActivities(data);
 
       const criticalRequests = [];
-
-      // 2. حساب الإحصائيات فوراً من البيانات المتاحة
       const totalTracks = data.length;
       const totalWorkshops = data.filter(a => a.type?.toLowerCase() === 'workshop').length;
 
@@ -87,18 +104,15 @@ function App() {
           })
         );
       } else {
-        // للطلاب: تظهر الأعداد المحسوبة وعدد افتراضي للطلاب
         setStats({ total_activities: totalTracks, total_workshops: totalWorkshops, total_students: '150+' });
       }
 
-      // 3. جلب التقدم لكل تراك (Prefetching)
       if (user?.email && user.role !== 'company') {
         const progressPromises = data.map(course => 
           API.get(`/progress/calculate/${course.id}/${user.email}`)
             .then(res => ({id: course.id, val: res.data?.percent || 0}))
             .catch(() => ({id: course.id, val: 0}))
         );
-        
         criticalRequests.push(
           Promise.all(progressPromises).then(results => {
             const newProgress = {};
@@ -108,14 +122,10 @@ function App() {
         );
         criticalRequests.push(checkNotifications());
       }
-
-      // 🔥 الانتظار حتى تنتهي جميع الطلبات تماماً
       await Promise.all(criticalRequests);
-
     } catch (err) {
       console.error("Global Fetch Error", err);
     } finally {
-      // إخفاء التحميل بعد جاهزية كل شيء
       setTimeout(() => setLoading(false), 600);
     }
   };
@@ -153,32 +163,14 @@ function App() {
   return (
     <div style={styles.appContainer}>
       <div style={styles.backgroundGrid}></div>
-      
-      <button 
-        onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
-        style={{
-          ...styles.toggleBtn, 
-          left: (isSidebarOpen && !isMobile) ? '290px' : '20px', 
-        }}
-      >
+      <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={{...styles.toggleBtn, left: (isSidebarOpen && !isMobile) ? '290px' : '20px'}}>
         {isSidebarOpen ? '✕' : '☰'}
       </button>
 
       <div style={{ display: 'flex', minHeight: '100vh', position: 'relative' }}>
-        <Sidebar 
-          isOpen={isSidebarOpen}
-          isMobile={isMobile}
-          user={user}
-          currentView={currentView}
-          onNavigate={setCurrentView}
-          onLogout={handleLogout}
-        />
+        <Sidebar isOpen={isSidebarOpen} isMobile={isMobile} user={user} currentView={currentView} onNavigate={setCurrentView} onLogout={handleLogout} />
 
-        <main style={{ 
-          ...styles.mainArea, 
-          marginLeft: (isSidebarOpen && !isMobile) ? '280px' : '0px',
-          width: (isSidebarOpen && !isMobile) ? 'calc(100% - 280px)' : '100%'
-        }}>
+        <main style={{ ...styles.mainArea, marginLeft: (isSidebarOpen && !isMobile) ? '280px' : '0px', width: (isSidebarOpen && !isMobile) ? 'calc(100% - 280px)' : '100%' }}>
           <div style={styles.pageHeader}>
              {currentView === 'dashboard' && !selectedCourse && user.role !== 'company' && (
                 <div>
@@ -186,9 +178,7 @@ function App() {
                    <p style={{color: '#64748b', marginTop: '5px'}}>Everything is synced and ready.</p>
                 </div>
              )}
-             {user.role === 'company' && currentView === 'leaderboard' && (
-                <h1 style={styles.welcomeText}>Welcome, {user.name} 👋</h1>
-             )}
+             {user.role === 'company' && currentView === 'leaderboard' && <h1 style={styles.welcomeText}>Welcome, {user.name} 👋</h1>}
              {currentView === 'dashboard' && !selectedCourse && (
                <div style={styles.searchContainer}>
                   <input placeholder="Search tracks..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={styles.searchInput} />
@@ -198,13 +188,11 @@ function App() {
           
           {currentView === 'dashboard' && !selectedCourse && user.role !== 'company' && (
             <div style={styles.contentFadeIn}>
-              {/* ✅ عرض الإحصائيات التي تم إصلاحها */}
               <div style={styles.statsGrid}>
                 <DashboardCard title="Total Tracks" value={stats.total_activities} icon="📚" color="#4facfe" />
                 <DashboardCard title="Active Students" value={stats.total_students} icon="👨‍🎓" color="#43e97b" />
                 <DashboardCard title="Workshops" value={stats.total_workshops} icon="⚡" color="#fa709a" />
               </div>
-
               <div style={styles.coursesGrid}>
                 {activities.filter(a => a.title.toLowerCase().includes(searchTerm.toLowerCase())).map(act => (
                   <div key={act.id} style={styles.courseCard}>
@@ -237,7 +225,7 @@ function App() {
           {currentView === 'team' && <TeamView />}
           {currentView === 'leaderboard' && <LeaderboardView />}
           {currentView === 'home' && <LandingPage user={user} onGetStarted={() => setCurrentView('dashboard')} />}
-          {currentView === 'schedule' && <CalendarView onOpenCourse={(c)=>setSelectedCourse(activities.find(a=>a.id===c))} />}
+          {currentView === 'schedule' && <CalendarView onOpenCourse={handleOpenCourse} />}
           {currentView === 'users' && <AdminUsersView currentUser={user} />}
           {currentView === 'community' && <CommunityView />}
           {currentView === 'sponsors' && user.role === 'admin' && <SponsorsPartnersBoard />}
@@ -256,7 +244,6 @@ function App() {
   );
 }
 
-// ✅ مكون الإحصائيات (Stat Card) المحسن
 const DashboardCard = ({ title, value, icon, color }) => (
   <div style={{ ...styles.statCard, borderBottom: `3px solid ${color}` }}>
     <div style={{ ...styles.iconCircle, backgroundColor: `${color}15`, color: color }}>{icon}</div>
@@ -267,12 +254,11 @@ const DashboardCard = ({ title, value, icon, color }) => (
   </div>
 );
 
-// ✅ مكون فريق العمل
 const TeamView = () => {
     const [team, setTeam] = useState([]);
     useEffect(() => { API.get('/team').then(res => setTeam(res.data)).catch(() => {}); }, []);
     return (
-        <div style={{paddingBottom: '50px', animation: 'fadeIn 0.5s ease'}}>
+        <div style={{paddingBottom: '50px'}}>
             <h2 style={{color: 'white', marginBottom: '40px', borderLeft: '5px solid #4facfe', paddingLeft: '15px', fontSize: '2rem'}}>🏆 Meet Our Heroes</h2>
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '25px'}}>
                 {team.map((m, i) => (
@@ -298,14 +284,11 @@ const styles = {
   welcomeText: { color: 'white', margin: 0, fontSize: '1.6rem', fontWeight: '800' },
   searchContainer: { background: 'rgba(15, 23, 42, 0.5)', padding: '10px 20px', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.08)', width: '280px', backdropFilter: 'blur(10px)' },
   searchInput: { background: 'transparent', border: 'none', color: 'white', outline: 'none', width: '100%', fontSize: '0.9rem' },
-  
-  // ✅ ستايل الإحصائيات الجديد
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '25px', marginBottom: '50px' },
   statCard: { background: 'rgba(15, 23, 42, 0.4)', padding: '25px', borderRadius: '24px', display: 'flex', alignItems: 'center', gap: '20px', border: '1px solid rgba(255,255,255,0.03)', backdropFilter: 'blur(10px)' },
   iconCircle: { width: '55px', height: '55px', borderRadius: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' },
   statValue: { fontSize: '1.8rem', fontWeight: '900', color: 'white' },
   statLabel: { color: '#94a3b8', fontSize: '12px', fontWeight: '600' },
-
   coursesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '30px' },
   courseCard: { backgroundColor: 'rgba(30, 41, 59, 0.2)', borderRadius: '24px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)', transition: '0.3s transform' },
   imageBox: { position: 'relative', height: '180px' },
