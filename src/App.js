@@ -7,9 +7,8 @@ import AuthPage from './AuthPage';
 import LandingPage from './LandingPage';
 import CalendarView from './CalendarView';
 import CommunityView from './CommunityView';
+import AdminUsersView from './AdminUsersView';
 import NotificationsModal from './NotificationsModal';
-
-// (تم دمج باقي المكونات بالأسفل)
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -53,7 +52,6 @@ function App() {
     if (isMobile) setIsSidebarOpen(false);
   }, [currentView, isMobile]);
 
-  // ✅ توجيه الشركة مباشرة للـ Leaderboard
   useEffect(() => {
       if (user?.role === 'company' && currentView === 'home') {
           setCurrentView('leaderboard');
@@ -161,6 +159,7 @@ function App() {
     <div style={styles.appContainer}>
       <div style={styles.backgroundGrid}></div>
       
+      {/* زرار القائمة */}
       <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={{
           ...styles.toggleBtn, 
           left: isSidebarOpen && !isMobile ? '300px' : '20px', 
@@ -232,9 +231,10 @@ function App() {
           marginLeft: (isSidebarOpen && !isMobile) ? '280px' : '0px',
           width: (isSidebarOpen && !isMobile) ? 'calc(100% - 280px)' : '100%'
         }}>
+          {/* ✅ التعديل هنا: تثبيت الـ Padding بـ 70px دائماً عشان الزرار ميركبش فوق الكلام */}
           <div style={{ 
               ...styles.pageHeader, 
-              paddingLeft: (!isSidebarOpen || isMobile) ? '70px' : '0',  
+              paddingLeft: '70px',  // ✅ دائماً 70 بكسل سواء مفتوح أو مقفول
               marginTop: isMobile ? '10px' : '0'     
           }}>
              {currentView === 'dashboard' && !selectedCourse && user.role !== 'company' && (
@@ -311,7 +311,6 @@ function App() {
   );
 }
 
-// ✅ 1. AdminUsersView المحدثة: زرار إضافة الشركات
 const AdminUsersView = ({ currentUser }) => {
     const [users, setUsers] = useState([]);
     const [showAddForm, setShowAddForm] = useState(false);
@@ -405,7 +404,6 @@ const AdminUsersView = ({ currentUser }) => {
     );
 };
 
-// ✅ 2. SettingsView المحدثة: إضافة خانات LinkedIn و CV
 const SettingsView = ({ user, onUpdateUser }) => {
   const [formData, setFormData] = useState({
       name: user.name || '', email: user.email || '', phone: user.phone || '',
@@ -441,12 +439,9 @@ const SettingsView = ({ user, onUpdateUser }) => {
                   <input type="file" onChange={e => setAvatar(e.target.files[0])} style={{marginTop:'10px', fontSize:'0.8rem'}} />
               </div>
               <input placeholder="Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} style={styles.sidebarInput} />
-              
-              {/* حقول التميز الجديدة */}
               <input placeholder="Job Title (e.g. React Developer)" value={formData.job_title} onChange={e => setFormData({...formData, job_title: e.target.value})} style={styles.sidebarInput} />
               <input placeholder="LinkedIn Profile URL" value={formData.linkedin} onChange={e => setFormData({...formData, linkedin: e.target.value})} style={styles.sidebarInput} />
               <input placeholder="CV / Portfolio Link" value={formData.cv_link} onChange={e => setFormData({...formData, cv_link: e.target.value})} style={styles.sidebarInput} />
-              
               <input placeholder="Email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} style={styles.sidebarInput} disabled />
               <input placeholder="Phone" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} style={styles.sidebarInput} />
               <hr style={{borderColor:'rgba(255,255,255,0.1)', width:'100%'}}/>
@@ -458,7 +453,6 @@ const SettingsView = ({ user, onUpdateUser }) => {
   );
 };
 
-// ✅ 3. LeaderboardView المحدثة: عرض الـ LinkedIn و CV للشركات
 const LeaderboardView = () => {
   const [users, setUsers] = useState([]);
   useEffect(() => { API.get('/leaderboard').then(res => setUsers(res.data)).catch(() => {}); }, []);
@@ -483,7 +477,6 @@ const LeaderboardView = () => {
                           </div>
                           
                           <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
-                              {/* أزرار التواصل للشركات */}
                               {u.linkedin && <a href={u.linkedin} target="_blank" rel="noreferrer" title="LinkedIn Profile" style={{fontSize:'1.5rem', textDecoration:'none', cursor:'pointer'}}>🔗</a>}
                               {u.cv_link && <a href={u.cv_link} target="_blank" rel="noreferrer" title="View CV" style={{fontSize:'1.5rem', textDecoration:'none', cursor:'pointer'}}>📄</a>}
                               
