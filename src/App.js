@@ -155,10 +155,9 @@ function App() {
     <div style={styles.appContainer}>
       <div style={styles.backgroundGrid}></div>
       
-      {/* ✅ الزرار: مكانه ثابت وفي الطبقة العليا */}
       <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={{
           ...styles.toggleBtn, 
-          left: isSidebarOpen && !isMobile ? '300px' : '20px', // تعديل المسافة لعدم التغطية عند الفتح
+          left: isSidebarOpen && !isMobile ? '300px' : '20px', 
           top: '25px'
       }}>
         {isSidebarOpen ? '◀' : '☰'}
@@ -195,10 +194,22 @@ function App() {
             <NavBtn icon="🏠" label="Home" active={currentView === 'home'} onClick={() => setCurrentView('home')} />
             <NavBtn icon="📊" label="Dashboard" active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} />
             <NavBtn icon="📅" label="Schedule" active={currentView === 'schedule'} onClick={() => setCurrentView('schedule')} />
-            <NavBtn icon="🏆" label="Leaderboard" active={currentView === 'leaderboard'} onClick={() => setCurrentView('leaderboard')} />
+            
+            {/* ✅ 1. تغيير الاسم من Leaderboard لـ Top Performances */}
+            <NavBtn icon="🏆" label="Top Performances" active={currentView === 'leaderboard'} onClick={() => setCurrentView('leaderboard')} />
+            
             {user?.role === 'admin' && <NavBtn icon="👥" label="Admin Panel" active={currentView === 'users'} onClick={() => setCurrentView('users')} />}
             <NavBtn icon="🌍" label="Community" active={currentView === 'community'} onClick={() => setCurrentView('community')} />
             <NavBtn icon="⚙️" label="Settings" active={currentView === 'settings'} onClick={() => setCurrentView('settings')} />
+            
+            {/* ✅ 2. إضافة زرار الموقع الرسمي (External Link) */}
+            <NavBtn 
+                icon="🌐" 
+                label="Main Website" 
+                active={false} 
+                onClick={() => window.open('https://studentbranches.ieee.org/eg-hiet-sb/', '_blank')} 
+            />
+
             <button onClick={handleLogout} style={styles.logoutBtn}>🚪 Logout</button>
           </nav>
         </aside>
@@ -208,10 +219,9 @@ function App() {
           marginLeft: (isSidebarOpen && !isMobile) ? '280px' : '0px',
           width: (isSidebarOpen && !isMobile) ? 'calc(100% - 280px)' : '100%'
         }}>
-          {/* ✅ الحل هنا: إضافة مسافة (Padding) من الشمال لو السايد بار مقفول عشان الزرار ميغطيش الكلام */}
           <div style={{ 
               ...styles.pageHeader, 
-              paddingLeft: (!isSidebarOpen || isMobile) ? '70px' : '0',  // ⚡ إزاحة النص لو السايد بار مقفول
+              paddingLeft: (!isSidebarOpen || isMobile) ? '70px' : '0',  
               marginTop: isMobile ? '10px' : '0'     
           }}>
              {currentView === 'dashboard' && !selectedCourse && (
@@ -243,7 +253,6 @@ function App() {
                       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
                           <h3 style={styles.courseTitle}>{act.title}</h3>
                           
-                          {/* ✅ زر التعديل والحذف موجود هنا - تأكد من الصلاحيات */}
                           {(user.role === 'admin' || (user.role === 'instructor' && act.created_by === user.id)) && (
                             <div style={{display: 'flex', gap: '8px'}}>
                                 <button onClick={() => setEditingActivity(act)} style={styles.editBtnSmall}>✏️</button>
