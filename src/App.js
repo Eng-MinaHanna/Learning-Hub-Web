@@ -1,359 +1,502 @@
-import React, { useEffect, useState } from 'react';
-import API from './api'; 
-import AddCourseModal from './AddCourseModal';
-import CourseDetailsModal from './CourseDetailsModal';
-import EditActivityModal from './EditActivityModal';
-import AuthPage from './AuthPage';
-import LandingPage from './LandingPage';
-import CalendarView from './CalendarView';
-import SettingsView from './SettingsView';
-import CommunityView from './CommunityView';
-import LeaderboardView from './LeaderboardView';
-import AdminUsersView from './AdminUsersView';
-import NotificationsModal from './NotificationsModal';
+require('dotenv').config();
+const express = require('express');
+const mysql = require('mysql');
+const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+// ✅ المكتبات السحابية
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
-function App() {
-  const [user, setUser] = useState(() => {
-    try {
-      const savedUser = localStorage.getItem('ieee_user');
-      return savedUser ? JSON.parse(savedUser) : null;
-    } catch (e) { return null; }
-  });
+const app = express();
 
-  const [activities, setActivities] = useState([]); 
-  const [stats, setStats] = useState({ total_activities: 0, total_students: 0, total_workshops: 0 });
-  const [selectedCourse, setSelectedCourse] = useState(null);
-  const [editingActivity, setEditingActivity] = useState(null);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  
-  const [currentView, setCurrentView] = useState(() => {
-      return localStorage.getItem('activeView') || 'home';
-  });
+// ==========================================
+// 🛡️ Security Config
+// ==========================================
+app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
 
-  const [progressData, setProgressData] = useState({});
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [showAuth, setShowAuth] = useState(false);
-  const [loading, setLoading] = useState(false);
+app.use(cors({
+    origin: "https://learning-hub-web-six.vercel.app",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true
+}));
 
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
+app.use(express.json());
 
-  useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth < 1024;
-      setIsMobile(mobile);
-      if (!mobile) setIsSidebarOpen(true);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 200,
+    message: { status: "Fail", message: "Too many requests ⛔" }
+});
+app.use(limiter);
 
-  useEffect(() => {
-    localStorage.setItem('activeView', currentView);
-    if (isMobile) setIsSidebarOpen(false);
-  }, [currentView, isMobile]);
+const JWT_SECRET = process.env.JWT_SECRET || "IEEE_ET5_SECRET_KEY_2026";
+const ADMIN_SECRET = process.env.ADMIN_SECRET;
+const INSTRUCTOR_SECRET = process.env.INSTRUCTOR_SECRET;
 
-  const fetchData = async () => {
-    if (activities.length === 0) setLoading(true); 
-    
-    try {
-      const actsRes = await API.get('/activities/all');
-      const data = Array.isArray(actsRes.data) ? actsRes.data : [];
-      setActivities(data);
+// ==========================================
+// ☁️ Cloudinary Configuration (تم التحسين)
+// ==========================================
+cloudinary.config({
+    cloud_name: 'ddgp71uok',
+    api_key: '581267836978872',
+    api_secret: '-jLxAlPA7tQ587Xdd38nYJ0H4lA'
+});
 
-      const savedCourseId = localStorage.getItem('activeCourseId');
-      if (savedCourseId) {
-          const courseToRestore = data.find(c => c.id == savedCourseId);
-          if (courseToRestore) setSelectedCourse(courseToRestore);
-      }
+// ✅ السماح بكل أنواع الملفات التعليمية
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'ieee_et5_main',
+        resource_type: 'auto', // يقبل فيديو، صوت، ملفات مضغوطة
+        allowed_formats: ['jpg', 'png', 'jpeg', 'pdf', 'doc', 'docx', 'ppt', 'pptx', 'zip', 'rar', 'mp4'],
+    },
+});
+const upload = multer({ storage });
 
-      if (user?.email) {
-        const promises = data.map(course => 
-           API.get(`/progress/calculate/${course.id}/${user.email}`)
-             .then(res => ({id: course.id, val: res.data?.percent || 0}))
-             .catch(()=>null)
-        );
-        const results = await Promise.all(promises);
-        const newProgress = {};
-        results.forEach(r => { if(r) newProgress[r.id] = r.val });
-        setProgressData(newProgress);
+// ==========================================
+// 🗄️ Database Connection
+// ==========================================
+const db = mysql.createConnection({
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASS || '',
+    database: process.env.DB_NAME || 'ieee_et5_db'
+});
 
-        if (user.role === 'admin') {
-          API.get('/stats').then(res => setStats(res.data || stats));
-        }
-        checkNotifications();
-      }
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  };
+db.connect((err) => {
+    if (err) console.error('❌ Database Connection Failed:', err.message);
+    else console.log('✅ Server Secured & DB Connected 🚀');
+});
 
-  const checkNotifications = () => {
-    if (!user?.id) return;
-    API.get(`/notifications/${user.id}`)
-      .then(res => setUnreadCount(Array.isArray(res.data) ? res.data.filter(n => !n.is_read).length : 0))
-      .catch(() => {});
-  };
+// ==========================================
+// 🛡️ Middlewares
+// ==========================================
+const verifyToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return res.status(403).json({ status: "Fail", message: "No Token" });
 
-  useEffect(() => {
-    if (user) fetchData();
-  }, [user?.id]);
-
-  const handleLogout = () => {
-    setUser(null); localStorage.clear(); setCurrentView('home');
-  };
-
-  const handleUserUpdate = (updatedData) => {
-    const newUser = { ...user, ...updatedData };
-    setUser(newUser);
-    localStorage.setItem('ieee_user', JSON.stringify(newUser));
-  };
-
-  const filteredActivities = (activities || []).filter(act =>
-    act?.title?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleOpenCourse = (course) => { 
-    setSelectedCourse(course); 
-    localStorage.setItem('activeCourseId', course?.id); 
-  };
-
-  const handleCloseCourse = () => {
-    setSelectedCourse(null);
-    localStorage.removeItem('activeCourseId'); 
-    fetchData();
-  };
-
-  const handleDelete = async (id) => {
-    if (window.confirm("⚠️ Confirm Delete?")) {
-      try {
-        await API.delete(`/activities/delete/${id}`);
-        fetchData();
-      } catch (err) { alert("Error deleting"); }
-    }
-  };
-
-  if (!user) {
-    return (
-      <div style={styles.appContainer}>
-        <div style={styles.backgroundGrid}></div>
-        {showAuth ? <AuthPage onLogin={(u) => {setUser(u); setShowAuth(false);}} /> : <LandingPage onGetStarted={() => setShowAuth(true)} />}
-      </div>
-    );
-  }
-
-  if (loading && activities.length === 0) {
-      return (
-          <div style={styles.loadingContainer}>
-              <div style={styles.spinner}></div>
-              <h3 style={{color: '#4facfe', marginTop: '20px', letterSpacing: '2px', fontFamily: 'monospace'}}>INITIALIZING SYSTEM...</h3>
-          </div>
-      );
-  }
-
-  return (
-    <div style={styles.appContainer}>
-      <div style={styles.backgroundGrid}></div>
-      
-      <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={{
-          ...styles.toggleBtn, 
-          left: isSidebarOpen && !isMobile ? '300px' : '20px', 
-          top: '25px'
-      }}>
-        {isSidebarOpen ? '◀' : '☰'}
-      </button>
-
-      <div style={{ display: 'flex', minHeight: '100vh', position: 'relative' }}>
-        
-        <aside style={{ 
-          ...styles.sidebar, 
-          width: isSidebarOpen ? '280px' : '0px', 
-          transform: (isMobile && !isSidebarOpen) ? 'translateX(-100%)' : 'translateX(0)',
-          visibility: (!isSidebarOpen && !isMobile) ? 'hidden' : 'visible'
-        }}>
-          <div style={{ padding: '40px 20px 20px', textAlign: 'center' }}>
-            <h2 style={{...styles.brandText, fontSize: '1.2rem', lineHeight: '1.5'}}>
-                IEEE <span style={{ color: '#4facfe' }}>ET5 SB</span>
-                <br />
-                <span style={{fontSize: '0.9rem', color: '#ccc', fontWeight: 'normal', letterSpacing: '1px'}}>Learning Hub</span>
-            </h2>
-            <div style={styles.divider}></div>
-          </div>
-
-          <div style={styles.userInfo}>
-            <div style={styles.avatar}>
-              {user?.profile_pic ? <img src={user.profile_pic} alt="P" style={styles.avatarImg} /> : user?.name?.charAt(0)}
-            </div>
-            <div style={{overflow:'hidden'}}>
-              <div style={styles.userName}>{user?.name}</div>
-              <div style={styles.userRole}>{user?.role}</div>
-            </div>
-          </div>
-
-          <nav style={styles.navStack}>
-              
-            <NavBtn icon="🏠" label="Home" active={currentView === 'home'} onClick={() => setCurrentView('home')} />
-                        {/* ✅ 2. إضافة زرار الموقع الرسمي (External Link) */}
-            <NavBtn 
-                icon="🌐" 
-                label="Main Website" 
-                active={false} 
-                onClick={() => window.open('https://studentbranches.ieee.org/eg-hiet-sb/', '_blank')} 
-            />
-            <NavBtn icon="📊" label="Dashboard" active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} />
-            <NavBtn icon="📅" label="Schedule" active={currentView === 'schedule'} onClick={() => setCurrentView('schedule')} />
-            
-            {/* ✅ 1. تغيير الاسم من Leaderboard لـ Top Performances */}
-            <NavBtn icon="🏆" label="Top Performances" active={currentView === 'leaderboard'} onClick={() => setCurrentView('leaderboard')} />
-            
-            {user?.role === 'admin' && <NavBtn icon="👥" label="Admin Panel" active={currentView === 'users'} onClick={() => setCurrentView('users')} />}
-            <NavBtn icon="🌍" label="Community" active={currentView === 'community'} onClick={() => setCurrentView('community')} />
-            <NavBtn icon="⚙️" label="Settings" active={currentView === 'settings'} onClick={() => setCurrentView('settings')} />
-            
-
-            <button onClick={handleLogout} style={styles.logoutBtn}>🚪 Logout</button>
-          </nav>
-        </aside>
-
-        <main style={{ 
-          ...styles.mainArea, 
-          marginLeft: (isSidebarOpen && !isMobile) ? '280px' : '0px',
-          width: (isSidebarOpen && !isMobile) ? 'calc(100% - 280px)' : '100%'
-        }}>
-          <div style={{ 
-              ...styles.pageHeader, 
-              paddingLeft: (!isSidebarOpen || isMobile) ? '70px' : '0',  
-              marginTop: isMobile ? '10px' : '0'     
-          }}>
-             {currentView === 'dashboard' && !selectedCourse && (
-                <h1 style={styles.welcomeText}>Hello, {user?.name?.split(' ')[0]}! ⚡</h1>
-             )}
-             {currentView === 'dashboard' && (
-               <div style={styles.searchContainer}>
-                  <input placeholder="Search tracks..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={styles.searchInput} />
-               </div>
-             )}
-          </div>
-          
-          {currentView === 'dashboard' && !selectedCourse && (
-            <div style={styles.contentFadeIn}>
-              <div style={styles.statsGrid}>
-                <DashboardCard title="Total Tracks" value={stats.total_activities} icon="📚" color="#4facfe" />
-                <DashboardCard title="Total Students" value={stats.total_students} icon="👨‍🎓" color="#43e97b" />
-                <DashboardCard title="Workshops" value={stats.total_workshops} icon="⚡" color="#fa709a" />
-              </div>
-
-              <div style={styles.coursesGrid}>
-                {filteredActivities.map(act => (
-                  <div key={act.id} style={styles.courseCard}>
-                    <div style={styles.imageBox}>
-                       {act.file_path ? <img src={act.file_path} alt="C" style={styles.courseImg} /> : <div style={styles.coursePlaceholder}>IEEE</div>}
-                       <div style={styles.typeBadge}>{act.type}</div>
-                    </div>
-                    <div style={{ padding: '20px' }}>
-                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
-                          <h3 style={styles.courseTitle}>{act.title}</h3>
-                          
-                          {(user.role === 'admin' || (user.role === 'instructor' && act.created_by === user.id)) && (
-                            <div style={{display: 'flex', gap: '8px'}}>
-                                <button onClick={() => setEditingActivity(act)} style={styles.editBtnSmall}>✏️</button>
-                                <button onClick={() => handleDelete(act.id)} style={styles.deleteBtnSmall}>🗑️</button>
-                            </div>
-                          )}
-                      </div>
-
-                      <div style={styles.progressSection}>
-                         <div style={styles.progressText}>Progress: {progressData[act.id] || 0}%</div>
-                         <div style={styles.barBg}><div style={{...styles.barFill, width: `${progressData[act.id] || 0}%`}}></div></div>
-                      </div>
-                      
-                      <button onClick={() => handleOpenCourse(act)} style={styles.continueBtn}>Continue ▶️</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {currentView === 'home' && <LandingPage user={user} onGetStarted={() => setCurrentView('dashboard')} />}
-          {currentView === 'schedule' && <CalendarView onOpenCourse={(c)=>setSelectedCourse(activities.find(a=>a.id===c))} />}
-          {currentView === 'leaderboard' && <LeaderboardView />}
-          {currentView === 'users' && <AdminUsersView currentUser={user} />}
-          {currentView === 'community' && <CommunityView />}
-          {currentView === 'settings' && <SettingsView user={user} onUpdateUser={handleUserUpdate} />}
-        </main>
-      </div>
-
-      {showAddModal && <AddCourseModal onClose={() => setShowAddModal(false)} onAdd={fetchData} currentUser={user} />}
-      {selectedCourse && <CourseDetailsModal course={selectedCourse} onClose={handleCloseCourse} currentUser={user} />}
-      {editingActivity && <EditActivityModal activity={editingActivity} onClose={() => setEditingActivity(null)} onUpdate={fetchData} />}
-      
-      {(user.role === 'admin' || user.role === 'instructor') && currentView === 'dashboard' && (
-        <button onClick={() => setShowAddModal(true)} style={styles.fab}>+</button>
-      )}
-    </div>
-  );
-}
-
-const NavBtn = ({ icon, label, active, onClick }) => (
-  <button onClick={onClick} style={active ? styles.navActive : styles.navInactive}>
-    <span style={{fontSize: '1.2rem'}}>{icon}</span>
-    {label}
-  </button>
-);
-
-const DashboardCard = ({ title, value, icon, color }) => (
-  <div style={{ ...styles.statCard, borderLeft: `5px solid ${color}` }}>
-    <div style={{ ...styles.iconCircle, backgroundColor: `${color}22`, color: color }}>{icon}</div>
-    <div>
-      <div style={styles.statLabel}>{title}</div>
-      <div style={styles.statValue}>{value}</div>
-    </div>
-  </div>
-);
-
-const styles = {
-  appContainer: { fontFamily: "'Cairo', sans-serif", backgroundColor: '#050810', color: 'white', minHeight: '100vh', position: 'relative', overflowX: 'hidden' },
-  backgroundGrid: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundImage: 'radial-gradient(rgba(79, 172, 254, 0.03) 2px, transparent 2px)', backgroundSize: '50px 50px', zIndex: 0 },
-  loadingContainer: { position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: '#050810', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
-  spinner: { width: '50px', height: '50px', border: '5px solid rgba(79, 172, 254, 0.2)', borderTop: '5px solid #4facfe', borderRadius: '50%', animation: 'spin 1s linear infinite' },
-  sidebar: { position: 'fixed', top: 0, left: 0, height: '100vh', backgroundColor: 'rgba(10, 15, 28, 0.95)', backdropFilter: 'blur(15px)', borderRight: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)', zIndex: 1000, overflow:'hidden' },
-  brandText: { margin: 0, fontSize: '1.5rem', fontWeight: '900', color: 'white', letterSpacing: '2px' },
-  divider: { height: '1px', background: 'linear-gradient(90deg, transparent, rgba(79,172,254,0.3), transparent)', margin: '15px 0' },
-  userInfo: { display: 'flex', alignItems: 'center', gap: '12px', padding: '15px', margin: '0 20px 30px', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.05)' },
-  avatar: { width: '40px', height: '40px', borderRadius: '12px', background: 'linear-gradient(135deg, #4facfe, #00f2fe)', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', fontSize: '1.1rem', color: '#050810' },
-  avatarImg: { width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' },
-  userName: { fontWeight: 'bold', fontSize: '0.85rem', whiteSpace:'nowrap' },
-  userRole: { fontSize: '10px', color: '#4facfe', textTransform: 'uppercase', letterSpacing: '1px' },
-  navStack: { display: 'flex', flexDirection: 'column', gap: '5px', padding: '0 15px' },
-  navInactive: { background: 'transparent', color: '#64748b', border: 'none', padding: '12px 15px', borderRadius: '12px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px', transition: '0.2s', fontSize: '0.9rem' },
-  navActive: { background: 'rgba(79, 172, 254, 0.1)', color: '#4facfe', borderRight: '3px solid #4facfe', padding: '12px 15px', borderRadius: '4px 12px 12px 4px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px' },
-  logoutBtn: { marginTop: '20px', background: 'rgba(239, 68, 68, 0.05)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.1)', padding: '10px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', fontSize:'0.8rem' },
-  mainArea: { padding: '40px 20px', transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)', position: 'relative', zIndex: 1, minHeight: '100vh' },
-  pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', flexWrap: 'wrap', gap: '20px' },
-  welcomeText: { color: 'white', margin: 0, fontSize: '1.6rem', fontWeight: '800' },
-  searchContainer: { background: 'rgba(255,255,255,0.03)', padding: '10px 20px', borderRadius: '30px', border: '1px solid rgba(255,255,255,0.08)', width: '280px' },
-  searchInput: { background: 'transparent', border: 'none', color: 'white', outline: 'none', width: '100%', fontSize: '0.9rem' },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '50px' },
-  statCard: { background: 'rgba(15, 23, 42, 0.4)', padding: '25px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '20px', border: '1px solid rgba(255,255,255,0.03)', backdropFilter: 'blur(10px)' },
-  statLabel: { color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' },
-  statValue: { fontSize: '1.8rem', fontWeight: '900', color: 'white' },
-  coursesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '30px' },
-  courseCard: { backgroundColor: 'rgba(30, 41, 59, 0.3)', borderRadius: '24px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)', transition: '0.3s' },
-  imageBox: { position: 'relative', height: '180px' },
-  courseImg: { width: '100%', height: '100%', objectFit: 'cover' },
-  coursePlaceholder: { width: '100%', height: '100%', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4facfe', fontWeight: '900', fontSize: '2rem' },
-  typeBadge: { position: 'absolute', bottom: '15px', left: '15px', background: 'rgba(15, 23, 42, 0.8)', padding: '5px 12px', borderRadius: '10px', fontSize: '10px', fontWeight: 'bold', color: '#4facfe', backdropFilter: 'blur(5px)' },
-  courseTitle: { color: 'white', margin: 0, fontSize: '1.2rem', fontWeight: '700' },
-  progressSection: { margin: '20px 0' },
-  progressText: { fontSize: '11px', color: '#64748b', marginBottom: '8px' },
-  barBg: { width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px' },
-  barFill: { height: '100%', background: 'linear-gradient(90deg, #4facfe, #00f2fe)', borderRadius: '10px', transition: '1s ease' },
-  continueBtn: { width: '100%', padding: '14px', borderRadius: '14px', border: 'none', background: 'linear-gradient(90deg, #4facfe, #00f2fe)', color: '#050810', fontWeight: '900', cursor: 'pointer', transition: '0.3s' },
-  deleteBtnSmall: { width: '35px', height:'35px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '10px', cursor: 'pointer', display:'flex', alignItems:'center', justifyContent:'center' },
-  editBtnSmall: { width: '35px', height:'35px', background: 'rgba(255, 255, 255, 0.05)', color: '#fff', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '10px', cursor: 'pointer', display:'flex', alignItems:'center', justifyContent:'center' },
-  toggleBtn: { position: 'fixed', zIndex: 3000, background: '#4facfe', color: '#050810', border: 'none', borderRadius: '10px', width: '40px', height: '40px', cursor: 'pointer', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 15px rgba(79,172,254,0.4)', transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)' },
-  fab: { position: 'fixed', bottom: '30px', right: '30px', width: '65px', height: '65px', borderRadius: '22px', background: 'linear-gradient(135deg, #4facfe, #00f2fe)', color: '#050810', fontSize: '35px', border: 'none', cursor: 'pointer', boxShadow: '0 15px 30px rgba(79,172,254,0.5)', zIndex:100, fontWeight: 'bold' }
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) return res.status(403).json({ status: "Fail", message: "Invalid Token" });
+        req.user = user;
+        next();
+    });
 };
 
-export default App;
+const verifyAdmin = (req, res, next) => {
+    verifyToken(req, res, () => {
+        if (req.user && req.user.role === 'admin') next();
+        else res.status(403).json({ status: "Fail", message: "Admin Only" });
+    });
+};
+
+const createNotification = (userId, senderName, senderAvatar, message, type) => {
+    const sql = "INSERT INTO notifications (user_id, sender_name, sender_avatar, message, type) VALUES (?, ?, ?, ?, ?)";
+    db.query(sql, [userId, senderName, senderAvatar, message, type]);
+};
+
+const reactionIcons = { like: '👍', love: '❤️', haha: '😂', wow: '😮', sad: '😢', angry: '😡' };
+
+// ==========================================
+// 🔐 Auth APIs
+// ==========================================
+
+app.post('/api/register', async (req, res) => {
+    const { name, email, phone, password, role, secretKey } = req.body;
+    if (role === 'admin' && secretKey !== ADMIN_SECRET) return res.json({ status: "Fail", message: "Wrong Admin Code" });
+    if (role === 'instructor' && secretKey !== INSTRUCTOR_SECRET) return res.json({ status: "Fail", message: "Wrong Instructor Code" });
+
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const sql = "INSERT INTO users (name, email, phone, password, role) VALUES (?, ?, ?, ?, ?)";
+        db.query(sql, [name, email, phone, hashedPassword, role], (err) => {
+            if (err) return res.json({ status: "Fail", message: "Email already exists" });
+            res.json({ status: "Success" });
+        });
+    } catch (e) { res.status(500).json({ status: "Error" }); }
+});
+
+app.post('/api/login', (req, res) => {
+    const { email, password } = req.body;
+    db.query("SELECT * FROM users WHERE email = ?", [email], async (err, data) => {
+        if (err || data.length === 0) return res.json({ status: "Fail", message: "Invalid Credentials" });
+        const isMatch = await bcrypt.compare(password, data[0].password);
+        if (isMatch) {
+            const token = jwt.sign({ id: data[0].id, role: data[0].role }, JWT_SECRET, { expiresIn: '7d' });
+            const { password: _, ...user } = data[0];
+            res.json({ status: "Success", user, token });
+        } else {
+            res.json({ status: "Fail", message: "Wrong Password" });
+        }
+    });
+});
+
+app.put('/api/user/update', verifyToken, upload.single('avatar'), (req, res) => {
+    const { id, name, email, phone, oldPassword, newPassword } = req.body;
+    if (req.user.id != id && req.user.role !== 'admin') return res.status(403).json({ status: "Fail" });
+
+    db.query("SELECT * FROM users WHERE id = ?", [id], async (err, users) => {
+        if (err || users.length === 0) return res.json({ status: "Fail" });
+        let finalPassword = users[0].password;
+        if (newPassword && newPassword.trim() !== "") {
+            const isMatch = await bcrypt.compare(oldPassword, users[0].password);
+            if (!isMatch) return res.json({ status: "Fail", message: "Wrong old password" });
+            finalPassword = await bcrypt.hash(newPassword, 10);
+        }
+        let sql = "UPDATE users SET name=?, email=?, phone=?, password=?";
+        let params = [name, email, phone, finalPassword];
+
+        if (req.file) {
+            sql += ", profile_pic=?";
+            params.push(req.file.path);
+        }
+
+        sql += " WHERE id=?"; params.push(id);
+        db.query(sql, params, () => res.json({ status: "Success", newProfilePic: req.file?.path }));
+    });
+});
+
+// ✅ مسار الاشتراك
+app.post('/api/check-subscription', verifyToken, (req, res) => {
+    const { course_id, student_name } = req.body;
+    db.query("SELECT * FROM registrations WHERE activity_id = ? AND student_name = ?", [course_id, student_name], (err, data) => {
+        if (err) return res.status(500).json({ status: "Error" });
+        res.json({ isSubscribed: data.length > 0 });
+    });
+});
+
+app.post('/api/subscribe', verifyToken, (req, res) => {
+    const { course_id, student_name, student_email } = req.body;
+    db.query("INSERT INTO registrations (activity_id, student_name, student_email) VALUES (?, ?, ?)", 
+        [course_id, student_name, student_email], 
+        (err) => {
+            if(err) return res.status(500).json({message: "Error"});
+            res.json({ status: "Success" });
+        }
+    );
+});
+
+// ==========================================
+// 🌍 Community APIs
+// ==========================================
+
+app.get('/api/posts', verifyToken, (req, res) => {
+    const sql = `SELECT posts.*, COUNT(DISTINCT comments.id) AS comment_count, COUNT(DISTINCT reactions.id) AS reaction_count 
+                 FROM posts LEFT JOIN comments ON posts.id = comments.post_id 
+                 LEFT JOIN reactions ON posts.id = reactions.post_id GROUP BY posts.id ORDER BY posts.created_at DESC`;
+    db.query(sql, (err, data) => {
+        if (err) return res.status(500).json({ status: "Error" });
+        res.json(data);
+    });
+});
+
+app.post('/api/posts/add', verifyToken, upload.single('image'), (req, res) => {
+    const { user_id, user_name, user_role, user_avatar, content } = req.body;
+    const img = req.file ? req.file.path : null;
+    db.query("INSERT INTO posts (user_id, user_name, user_role, user_avatar, content, post_image) VALUES (?,?,?,?,?,?)",
+        [user_id, user_name, user_role, user_avatar, content, img], () => res.json({ status: "Success" }));
+});
+
+app.post('/api/posts/react', verifyToken, (req, res) => {
+    const { post_id, user_id, reaction_type } = req.body;
+    db.query("SELECT name, profile_pic FROM users WHERE id=?", [user_id], (err, u) => {
+        if (!u || u.length === 0) return;
+        const senderName = u[0].name; const senderAvatar = u[0].profile_pic;
+        db.query("SELECT * FROM reactions WHERE post_id=? AND user_id=?", [post_id, user_id], (err, data) => {
+            if (data.length > 0) {
+                if (data[0].reaction_type === reaction_type) db.query("DELETE FROM reactions WHERE id=?", [data[0].id], () => res.json({ status: "Removed" }));
+                else db.query("UPDATE reactions SET reaction_type=? WHERE id=?", [reaction_type, data[0].id], () => res.json({ status: "Updated" }));
+            } else {
+                db.query("INSERT INTO reactions (post_id, user_id, reaction_type) VALUES (?,?,?)", [post_id, user_id, reaction_type], () => {
+                    db.query("SELECT user_id FROM posts WHERE id=?", [post_id], (err, p) => {
+                        if (p && p.length > 0 && p[0].user_id !== user_id) createNotification(p[0].user_id, senderName, senderAvatar, `reacted ${reactionIcons[reaction_type]} to your post`, "react");
+                    });
+                    res.json({ status: "Added" });
+                });
+            }
+        });
+    });
+});
+
+app.get('/api/reactions', verifyToken, (req, res) => {
+    db.query("SELECT post_id, user_id, reaction_type FROM reactions", (err, data) => {
+        if (err) return res.status(500).json({ status: "Error" });
+        res.json(data);
+    });
+});
+
+// ✅ مسار حذف البوست
+app.delete('/api/posts/delete/:id', verifyToken, (req, res) => {
+    const postId = req.params.id;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    db.query("SELECT user_id FROM posts WHERE id = ?", [postId], (err, data) => {
+        if (err) return res.status(500).json({ status: "Error", message: "DB Error" });
+        if (data.length === 0) return res.status(404).json({ status: "Fail", message: "Post not found" });
+
+        if (data[0].user_id === userId || userRole === 'admin') {
+            db.query("DELETE FROM posts WHERE id = ?", [postId], (err) => {
+                if (err) return res.status(500).json({ status: "Error", message: "Deletion failed" });
+                res.json({ status: "Deleted" });
+            });
+        } else {
+            res.status(403).json({ status: "Fail", message: "Not authorized" });
+        }
+    });
+});
+
+// ---------------------------
+// 💬 Comments APIs
+// ---------------------------
+
+app.get('/api/comments/:postId', verifyToken, (req, res) => {
+    db.query("SELECT * FROM comments WHERE post_id=? ORDER BY created_at ASC", [req.params.postId], (err, data) => res.json(data));
+});
+
+// ✅ جلب تعليقات الكورس
+app.get('/api/comments/course/:courseId', verifyToken, (req, res) => {
+    db.query("SELECT * FROM comments WHERE course_id=? ORDER BY created_at ASC", [req.params.courseId], (err, data) => res.json(data));
+});
+
+app.post('/api/comments/add', verifyToken, (req, res) => {
+    const { post_id, course_id, user_id, user_name, user_avatar, comment_text } = req.body;
+    const uid = user_id || req.user.id;
+
+    if (course_id) {
+        const sql = "INSERT INTO comments (course_id, user_id, user_name, user_avatar, comment_text) VALUES (?,?,?,?,?)";
+        db.query(sql, [course_id, uid, user_name, user_avatar, comment_text], (err) => {
+            if (err) return res.status(500).json({ status: "Fail", message: err.message });
+            res.json({ status: "Success" });
+        });
+    } else {
+        const sql = "INSERT INTO comments (post_id, user_id, user_name, user_avatar, comment_text) VALUES (?,?,?,?,?)";
+        db.query(sql, [post_id, uid, user_name, user_avatar, comment_text], (err) => {
+            if (err) return res.status(500).json({ status: "Fail", message: err.message });
+            res.json({ status: "Success" });
+        });
+    }
+});
+
+// ✅ مسار حذف الكومنتات
+app.delete('/api/comments/delete/:id', verifyToken, (req, res) => {
+    db.query("DELETE FROM comments WHERE id = ?", [req.params.id], (err) => {
+        if (err) return res.status(500).json({ status: "Fail" });
+        res.json({ status: "Deleted" });
+    });
+});
+
+app.get('/api/users', verifyAdmin, (req, res) => {
+    db.query("SELECT id, name, email, phone, role, profile_pic, created_at FROM users ORDER BY created_at DESC", (err, data) => {
+        if (err) return res.status(500).json({ status: "Error", message: "Database Error" });
+        res.json(data || []); 
+    });
+});
+
+// ==========================================
+// 🎓 Activities & Courses
+// ==========================================
+
+app.get('/api/activities/all', verifyToken, (req, res) => {
+    const sql = `SELECT activities.*, COUNT(registrations.id) as registered_count FROM activities 
+                 LEFT JOIN registrations ON activities.id = registrations.activity_id GROUP BY activities.id ORDER BY event_date DESC`;
+    db.query(sql, (err, data) => res.json(data));
+});
+
+app.post('/api/activities/add', verifyToken, upload.single('material'), (req, res) => {
+    if (req.user.role === 'student') return res.status(403).json({ message: "Unauthorized" });
+    const filePath = req.file ? req.file.path : null;
+    const { title, description, type, instructor, event_date } = req.body;
+    const createdBy = req.user.id;
+    const sql = "INSERT INTO activities (title, description, type, instructor, event_date, file_path, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)";
+    const params = [title, description, type, instructor, event_date, filePath, createdBy];
+    db.query(sql, params, (err) => {
+        if (err) return res.status(500).json({ status: "Fail", message: "Database Error" });
+        res.json({ status: "Success" });
+    });
+});
+
+app.put('/api/activities/update/:id', verifyToken, upload.single('material'), (req, res) => {
+    if (req.user.role === 'student') return res.status(403).json({ message: "Unauthorized" });
+    
+    const { title, description, instructor, event_date } = req.body;
+    const activityId = req.params.id;
+
+    let sql = "UPDATE activities SET title=?, description=?, instructor=?, event_date=?";
+    let params = [title, description, instructor, event_date];
+
+    if (req.file) {
+        sql += ", file_path=?";
+        params.push(req.file.path); 
+    }
+
+    sql += " WHERE id=?";
+    params.push(activityId);
+
+    db.query(sql, params, (err) => {
+        if (err) return res.status(500).json({ status: "Fail", message: err.message });
+        res.json({ status: "Updated", newImagePath: req.file ? req.file.path : null });
+    });
+});
+
+app.delete('/api/activities/delete/:id', verifyToken, (req, res) => {
+    db.query("DELETE FROM activities WHERE id = ?", [req.params.id], (err) => res.json({ status: "Deleted" }));
+});
+
+// --- Videos & Progress ---
+app.get('/api/videos/:courseId', verifyToken, (req, res) => {
+    db.query("SELECT * FROM course_videos WHERE course_id=? ORDER BY video_date ASC", [req.params.courseId], (err, data) => res.json(data));
+});
+
+app.post('/api/videos/add', verifyToken, upload.single('video_file'), (req, res) => {
+    const videoLink = req.file ? req.file.path : req.body.video_link;
+    const sql = "INSERT INTO course_videos (course_id, video_title, video_link, video_date) VALUES (?, ?, ?, ?)";
+    db.query(sql, [req.body.course_id, req.body.video_title, videoLink, req.body.video_date], (err, result) => res.json({ status: "Success", id: result.insertId }));
+});
+
+app.put('/api/videos/update/:id', verifyToken, upload.single('video_file'), (req, res) => {
+    const videoLink = req.file ? req.file.path : req.body.video_link;
+    const sql = "UPDATE course_videos SET video_title=?, video_link=?, video_date=? WHERE id=?";
+    db.query(sql, [req.body.video_title, videoLink, req.body.video_date, req.params.id], (err) => {
+        if (err) return res.status(500).json({ status: "Fail" });
+        res.json({ status: "Updated" });
+    });
+});
+
+app.delete('/api/videos/delete/:id', verifyToken, (req, res) => {
+    db.query("DELETE FROM course_videos WHERE id = ?", [req.params.id], (err) => {
+        if (err) return res.status(500).json({ status: "Fail" });
+        res.json({ status: "Deleted" });
+    });
+});
+
+app.get('/api/schedule/all', verifyToken, (req, res) => {
+    const sql = `SELECT v.id, v.course_id, v.video_title, v.video_date, COALESCE(a.title, 'General') as course_title 
+                 FROM course_videos v LEFT JOIN activities a ON v.course_id = a.id 
+                 WHERE v.video_date IS NOT NULL ORDER BY v.video_date ASC`;
+    db.query(sql, (err, data) => res.json(data));
+});
+
+app.get('/api/progress/calculate/:courseId/:email', verifyToken, (req, res) => {
+    const { courseId, email } = req.params;
+    db.query("SELECT COUNT(*) as total FROM course_videos WHERE course_id=?", [courseId], (err, t) => {
+        if (!t || t[0].total === 0) return res.json({ percent: 0 });
+        db.query("SELECT COUNT(*) as watched FROM video_progress vp JOIN course_videos cv ON vp.video_id = cv.id WHERE vp.user_email=? AND cv.course_id=? AND vp.is_completed=1",
+            [email, courseId], (err, w) => res.json({ percent: Math.round((w[0].watched / t[0].total) * 100) }));
+    });
+});
+
+app.post('/api/progress/mark-watched', verifyToken, (req, res) => {
+    db.query("INSERT IGNORE INTO video_progress (user_email, video_id, is_completed) VALUES (?, ?, 1)", [req.body.user_email, req.body.video_id], () => res.json({ status: "Success" }));
+});
+
+app.get('/api/progress/status/:courseId/:videoId/:email', verifyToken, (req, res) => {
+    const { courseId, videoId, email } = req.params;
+    db.query("SELECT * FROM video_progress WHERE user_email = ? AND video_id = ?", [email, videoId], (err, videoData) => {
+        db.query("SELECT COUNT(*) as count, MAX(score) as best_score FROM quiz_attempts WHERE user_email = ? AND course_id = ?", [email, courseId], (err, attemptData) => {
+            res.json({ isWatched: (videoData && videoData.length > 0), attempts: attemptData[0]?.count || 0, bestScore: attemptData[0]?.best_score || 0 });
+        });
+    });
+});
+
+// ==========================================
+// 🛠️ Quizzes & Materials
+// ==========================================
+
+app.get('/api/quiz/:courseId', verifyToken, (req, res) => {
+    db.query("SELECT * FROM quiz_questions WHERE course_id = ?", [req.params.courseId], (err, data) => res.json(data));
+});
+
+app.post('/api/quiz/add', verifyToken, (req, res) => {
+    const sql = "INSERT INTO quiz_questions (course_id, question_text, option_a, option_b, option_c, option_d, correct_answer) VALUES (?, ?, ?, ?, ?, ?, ?)";
+    db.query(sql, [req.body.course_id, req.body.question_text, req.body.option_a, req.body.option_b, req.body.option_c, req.body.option_d, req.body.correct_answer], () => res.json({ status: "Success" }));
+});
+
+app.delete('/api/quiz/delete/:id', verifyToken, (req, res) => {
+    db.query("DELETE FROM quiz_questions WHERE id = ?", [req.params.id], (err) => {
+        if (err) return res.status(500).json({ status: "Fail" });
+        res.json({ status: "Deleted" });
+    });
+});
+
+app.post('/api/quiz/attempt', verifyToken, (req, res) => {
+    const { user_email, course_id, score } = req.body;
+    const sql = "INSERT INTO quiz_attempts (user_email, course_id, score) VALUES (?, ?, ?)";
+    db.query(sql, [user_email, course_id, score], () => res.json({ status: "Success" }));
+});
+
+app.get('/api/materials/:courseId', verifyToken, (req, res) => {
+    db.query("SELECT * FROM course_materials WHERE course_id = ?", [req.params.courseId], (err, data) => res.json(data));
+});
+
+// ✅ إضافة ماتريال عن طريق لينك خارجي (Drive)
+app.post('/api/materials/add', verifyToken, (req, res) => {
+    const { course_id, title, link } = req.body; 
+
+    if (!course_id || !title || !link) {
+        return res.status(400).json({ status: "Fail", message: "Missing fields" });
+    }
+
+    db.query("INSERT INTO course_materials (course_id, title, file_path) VALUES (?, ?, ?)", 
+        [course_id, title, link], 
+        (err) => {
+            if (err) {
+                console.error("DB Error:", err);
+                return res.status(500).json({ status: "Fail", message: "Database Error" });
+            }
+            res.json({ status: "Success" });
+        }
+    );
+});
+
+app.delete('/api/materials/delete/:id', verifyToken, (req, res) => {
+    db.query("DELETE FROM course_materials WHERE id = ?", [req.params.id], (err) => {
+        if (err) return res.status(500).json({ status: "Fail" });
+        res.json({ status: "Deleted" });
+    });
+});
+
+// ==========================================
+// 🛠️ Admin & Leaderboard
+// ==========================================
+
+app.get('/api/stats', verifyAdmin, (req, res) => {
+    const sql = `SELECT (SELECT COUNT(*) FROM activities) as total_activities, (SELECT COUNT(*) FROM registrations) as total_students, (SELECT COUNT(*) FROM activities WHERE type='workshop') as total_workshops`;
+    db.query(sql, (err, data) => res.json(data[0]));
+});
+
+app.get('/api/leaderboard', verifyToken, (req, res) => {
+    const sql = `SELECT u.id, u.name, u.profile_pic, u.role,
+        (SELECT COUNT(*) FROM video_progress vp WHERE vp.user_email = u.email AND vp.is_completed = 1) * 10 AS video_points,
+        COALESCE((SELECT SUM(score) FROM quiz_attempts qa WHERE qa.user_email = u.email), 0) AS quiz_points,
+        (SELECT COUNT(*) FROM posts p WHERE p.user_id = u.id) * 5 AS post_points,
+        (SELECT COUNT(*) FROM comments c WHERE c.user_id = u.id) * 2 AS comment_points
+        FROM users u WHERE u.role != 'admin' ORDER BY (video_points + quiz_points + post_points + comment_points) DESC LIMIT 10`;
+    db.query(sql, (err, data) => res.json(data));
+});
+
+// ✅ (جديد) جلب بيانات التيم (الأدمن والمحاضرين) لصفحة التقدير
+app.get('/api/team', verifyToken, (req, res) => {
+    // بنجيب الاسم، الصورة، والدور، ونرتبهم بحيث الأدمن يظهر الأول
+    const sql = `SELECT name, role, profile_pic, email FROM users 
+                 WHERE role IN ('admin', 'instructor') 
+                 ORDER BY FIELD(role, 'admin', 'instructor'), name ASC`;
+    db.query(sql, (err, data) => {
+        if (err) return res.status(500).json({ status: "Error" });
+        res.json(data);
+    });
+});
+
+// ==========================================
+// 🚀 Start
+// ==========================================
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}...`));
+
+module.exports = app;
