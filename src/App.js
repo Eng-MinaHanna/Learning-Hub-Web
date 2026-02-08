@@ -16,7 +16,6 @@ import LeaderboardView from './LeaderboardView';
 import Sidebar from './Sidebar';
 import LoadingEffect from './LoadingEffect';
 
-
 function App() {
   const [user, setUser] = useState(() => {
     try {
@@ -35,7 +34,7 @@ function App() {
   const [progressData, setProgressData] = useState({});
   const [unreadCount, setUnreadCount] = useState(0);
   const [showAuth, setShowAuth] = useState(false);
-  const [loading, setLoading] = useState(true); 
+  const [loading, setLoading] = useState(true); // نتركها True في البداية
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
 
@@ -54,7 +53,7 @@ function App() {
     if (isMobile) setIsSidebarOpen(false);
   }, [currentView, isMobile]);
 
-  // ✅ 1. تعريف الدوال الأساسية (إصلاح الـ no-undef)
+  // ✅ 1. تعريف الدوال الأساسية
   const handleOpenCourse = (course) => { 
     setSelectedCourse(course); 
     localStorage.setItem('activeCourseId', course?.id); 
@@ -83,9 +82,11 @@ function App() {
     } catch (e) { console.error("Notify Error"); }
   };
 
+  // ✅ 2. دالة جلب البيانات الموحدة (Pre-fetching)
   const fetchData = async () => {
     setLoading(true); 
     try {
+      // جلب الأنشطة
       const actsRes = await API.get('/activities/all');
       const data = Array.isArray(actsRes.data) ? actsRes.data : [];
       setActivities(data);
@@ -94,6 +95,7 @@ function App() {
       const totalTracks = data.length;
       const totalWorkshops = data.filter(a => a.type?.toLowerCase() === 'workshop').length;
 
+      // جلب الإحصائيات للأدمن أو تعيين افتراضي للطلاب
       if (user?.role === 'admin') {
         criticalRequests.push(
           API.get('/stats').then(res => {
@@ -108,6 +110,7 @@ function App() {
         setStats({ total_activities: totalTracks, total_workshops: totalWorkshops, total_students: '150+' });
       }
 
+      // جلب التقدم لكل تراك
       if (user?.email && user.role !== 'company') {
         const progressPromises = data.map(course => 
           API.get(`/progress/calculate/${course.id}/${user.email}`)
@@ -123,17 +126,22 @@ function App() {
         );
         criticalRequests.push(checkNotifications());
       }
+
       await Promise.all(criticalRequests);
     } catch (err) {
       console.error("Global Fetch Error", err);
     } finally {
-      setTimeout(() => setLoading(false), 600);
+      // إخفاء شاشة التحميل بعد الانتهاء
+      setTimeout(() => setLoading(false), 800);
     }
   };
 
   useEffect(() => { 
-    if (user) fetchData(); 
-    else setLoading(false);
+    if (user) {
+        fetchData(); 
+    } else {
+        setLoading(false); // إذا لم يكن هناك مستخدم، نفتح الصفحة الرئيسية فوراً
+    }
   }, [user?.id]);
 
   const handleLogout = () => { setUser(null); localStorage.clear(); setCurrentView('home'); };
@@ -144,6 +152,7 @@ function App() {
     localStorage.setItem('ieee_user', JSON.stringify(newUser));
   };
 
+  // ✅ 3. شاشة تسجيل الدخول أو الصفحة التعريفية
   if (!user && !loading) {
     return (
       <div style={styles.appContainer}>
@@ -153,10 +162,11 @@ function App() {
     );
   }
 
+  // ✅ 4. شاشة التحميل الموحدة
   if (loading) {
       return (
           <div style={styles.loadingContainer}>
-              <LoadingEffect message="PREPARING YOUR HUB..." />
+              <LoadingEffect message="SYNCING WITH IEEE HUB..." />
           </div>
       );
   }
@@ -164,7 +174,10 @@ function App() {
   return (
     <div style={styles.appContainer}>
       <div style={styles.backgroundGrid}></div>
-      <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={{...styles.toggleBtn, left: (isSidebarOpen && !isMobile) ? '290px' : '20px'}}>
+      <button 
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+        style={{...styles.toggleBtn, left: (isSidebarOpen && !isMobile) ? '290px' : '20px'}}
+      >
         {isSidebarOpen ? '✕' : '☰'}
       </button>
 
@@ -176,7 +189,7 @@ function App() {
              {currentView === 'dashboard' && !selectedCourse && user.role !== 'company' && (
                 <div>
                    <h1 style={styles.welcomeText}>Hello, {user?.name?.split(' ')[0]}! ⚡</h1>
-                   <p style={{color: '#64748b', marginTop: '5px'}}>Everything is synced and ready.</p>
+                   <p style={{color: '#64748b', marginTop: '5px'}}>Everything is ready for your growth.</p>
                 </div>
              )}
              {user.role === 'company' && currentView === 'leaderboard' && <h1 style={styles.welcomeText}>Welcome, {user.name} 👋</h1>}
@@ -245,6 +258,7 @@ function App() {
   );
 }
 
+// ✅ مكون الإحصائيات (Stat Card)
 const DashboardCard = ({ title, value, icon, color }) => (
   <div style={{ ...styles.statCard, borderBottom: `3px solid ${color}` }}>
     <div style={{ ...styles.iconCircle, backgroundColor: `${color}15`, color: color }}>{icon}</div>
@@ -255,6 +269,7 @@ const DashboardCard = ({ title, value, icon, color }) => (
   </div>
 );
 
+// ✅ مكون فريق العمل
 const TeamView = () => {
     const [team, setTeam] = useState([]);
     useEffect(() => { API.get('/team').then(res => setTeam(res.data)).catch(() => {}); }, []);
