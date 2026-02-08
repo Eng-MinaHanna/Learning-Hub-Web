@@ -7,8 +7,9 @@ import AuthPage from './AuthPage';
 import LandingPage from './LandingPage';
 import CalendarView from './CalendarView';
 import CommunityView from './CommunityView';
-import AdminUsersView from './AdminUsersView';
 import NotificationsModal from './NotificationsModal';
+
+// ⚠️ تم إزالة الـ imports المتكررة (AdminUsersView, SettingsView, LeaderboardView) لأنهم مكتوبين تحت في نفس الملف
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -159,7 +160,6 @@ function App() {
     <div style={styles.appContainer}>
       <div style={styles.backgroundGrid}></div>
       
-      {/* زرار القائمة */}
       <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={{
           ...styles.toggleBtn, 
           left: isSidebarOpen && !isMobile ? '300px' : '20px', 
@@ -231,10 +231,9 @@ function App() {
           marginLeft: (isSidebarOpen && !isMobile) ? '280px' : '0px',
           width: (isSidebarOpen && !isMobile) ? 'calc(100% - 280px)' : '100%'
         }}>
-          {/* ✅ التعديل هنا: تثبيت الـ Padding بـ 70px دائماً عشان الزرار ميركبش فوق الكلام */}
           <div style={{ 
               ...styles.pageHeader, 
-              paddingLeft: '70px',  // ✅ دائماً 70 بكسل سواء مفتوح أو مقفول
+              paddingLeft: '70px',  
               marginTop: isMobile ? '10px' : '0'     
           }}>
              {currentView === 'dashboard' && !selectedCourse && user.role !== 'company' && (
@@ -595,7 +594,8 @@ const styles = {
   toggleBtn: { position: 'fixed', zIndex: 3000, background: '#4facfe', color: '#050810', border: 'none', borderRadius: '10px', width: '40px', height: '40px', cursor: 'pointer', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 15px rgba(79,172,254,0.4)', transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)' },
   fab: { position: 'fixed', bottom: '30px', right: '30px', width: '65px', height: '65px', borderRadius: '22px', background: 'linear-gradient(135deg, #4facfe, #00f2fe)', color: '#050810', fontSize: '35px', border: 'none', cursor: 'pointer', boxShadow: '0 15px 30px rgba(79,172,254,0.5)', zIndex:100, fontWeight: 'bold' },
   actionBtn: { padding: '8px 16px', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' },
-  sidebarInput: { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', outline: 'none' }
+  sidebarInput: { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', outline: 'none' },
+  continueBtn: { width: '100%', padding: '14px', borderRadius: '14px', border: 'none', background: 'linear-gradient(90deg, #4facfe, #00f2fe)', color: '#050810', fontWeight: '900', cursor: 'pointer', transition: '0.3s' },
 };
 
 export default App;
