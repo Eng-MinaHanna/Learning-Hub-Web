@@ -62,8 +62,7 @@ function App() {
   const handleCloseCourse = () => {
     setSelectedCourse(null);
     localStorage.removeItem('activeCourseId'); 
-    // ننادي fetchData لكنها لن تغلق الشاشة لأن الداتا موجودة فعلاً
-    fetchData();
+    fetchData(); // تحديث صامت
   };
 
   const handleDelete = async (id) => {
@@ -82,11 +81,10 @@ function App() {
   };
 
   const fetchData = async () => {
-    // 🔥 تحسين: لا تظهر شاشة التحميل الكبيرة إذا كانت الأنشطة محملة مسبقاً
+    // ✅ تحسين: لو الداتا عندنا مش هنطلع شاشة التحميل الزرقاء تاني
     if (activities.length === 0) setLoading(true); 
     setSyncError(false);
 
-    // 🕒 إعداد تايم أوت (15 ثانية) للتعامل مع بطء السيرفر
     const timeoutId = setTimeout(() => {
         if (activities.length === 0) { 
             setSyncError(true);
@@ -95,7 +93,7 @@ function App() {
     }, 15000); 
 
     try {
-      // ✅ تعديل: إضافة .catch لكل طلب لضمان عدم توقف الموقع لو طلب واحد فشل (Stats أو Notifications)
+      // ✅ حماية: كل طلب لو فشل مش هيوقف التاني (بإضافة catch لكل فرد)
       const [actsRes, statsRes] = await Promise.all([
         API.get('/activities/all').catch(() => ({ data: [] })),
         (user?.role === 'admin' ? API.get('/stats').catch(() => ({ data: { total_students: 0 } })) : Promise.resolve({ data: null })),
@@ -103,27 +101,19 @@ function App() {
       ]);
 
       clearTimeout(timeoutId);
-
       const data = Array.isArray(actsRes.data) ? actsRes.data : [];
       setActivities(data);
-      
-      // بمجرد وصول الأنشطة، نغلق شاشة التحميل فوراً
       setLoading(false);
-
-      const totalTracks = data.length;
-      const totalWorkshops = data.filter(a => a.type?.toLowerCase() === 'workshop').length;
 
       if (user?.role === 'admin' && statsRes?.data) {
         setStats({
-          total_activities: totalTracks,
-          total_workshops: totalWorkshops,
+          total_activities: data.length,
+          total_workshops: data.filter(a => a.type?.toLowerCase() === 'workshop').length,
           total_students: statsRes.data.total_students || 0
         });
-      } else {
-        setStats({ total_activities: totalTracks, total_workshops: totalWorkshops, total_students: '150+' });
       }
 
-      // جلب البروجرس في الخلفية بدون حظر واجهة المستخدم
+      // جلب البروجرس في الخلفية بدون حظر الواجهة
       if (user?.email && user.role !== 'company' && data.length > 0) {
         const progressPromises = data.map(course => 
            API.get(`/progress/calculate/${course.id}/${user.email}`).catch(() => ({ data: { percent: 0 } }))
@@ -150,8 +140,6 @@ function App() {
 
   const handleLogout = () => { setUser(null); localStorage.clear(); setCurrentView('home'); };
 
-  // --- التحكم في واجهة المستخدم (Views) ---
-
   if (!user && !loading) {
     return (
       <div style={styles.appContainer}>
@@ -161,7 +149,6 @@ function App() {
     );
   }
 
-  // 🛠️ نافذة الخطأ أو الصيانة المخصصة
   if (syncError) {
       return (
           <div style={styles.loadingContainer}>
@@ -171,7 +158,7 @@ function App() {
                     في حاليا مشكله أو صيانة، يرجى الانتظار أو الرجوع إلى الـ <b>Officers</b> إذا استمرت المشكلة.
                   </p>
                   <div style={{display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '20px'}}>
-                      <button onClick={() => fetchData()} style={styles.continueBtn}>🔄 Retry Now</button>
+                      <button onClick={() => window.location.reload()} style={styles.continueBtn}>🔄 Retry Now</button>
                       <button onClick={handleLogout} style={{...styles.continueBtn, background: 'transparent', color: '#fff', border: '1px solid #444'}}>Logout</button>
                   </div>
               </div>
@@ -280,10 +267,7 @@ const DashboardCard = ({ title, value, icon, color }) => (
 const TeamView = () => {
     const [team, setTeam] = useState([]);
     useEffect(() => { 
-        // ✅ طلب بيانات الفريق مع معالجة الخطأ لمنع الـ 404
-        API.get('/team')
-           .then(res => setTeam(Array.isArray(res.data) ? res.data : []))
-           .catch(() => setTeam([])); 
+        API.get('/team').then(res => setTeam(Array.isArray(res.data) ? res.data : [])).catch(() => setTeam([])); 
     }, []);
     return (
         <div style={{paddingBottom: '50px'}}>
