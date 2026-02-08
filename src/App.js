@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import API from './api'; 
+import './App.css';
 import AddCourseModal from './AddCourseModal';
 import CourseDetailsModal from './CourseDetailsModal';
 import EditActivityModal from './EditActivityModal';
