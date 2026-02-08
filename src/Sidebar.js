@@ -42,11 +42,22 @@ const Sidebar = ({ isOpen, isMobile, user, currentView, onNavigate, onLogout }) 
                     </>
                 )}
 
-                {user?.role === 'admin' && <NavBtn icon="👥" label="Admin Panel" active={currentView === 'users'} onClick={() => onNavigate('users')} />}
+                {/* ✅✅✅ ADMIN SECTION ✅✅✅ */}
+                {user?.role === 'admin' && (
+                    <>
+                        <div style={{...styles.divider, margin: '10px 0'}}></div>
+                        <span style={{fontSize:'0.75rem', color:'#64748b', paddingLeft:'15px', marginBottom:'5px', fontWeight:'bold'}}>ADMIN CONTROLS</span>
+                        
+                        <NavBtn icon="👥" label="Users Management" active={currentView === 'users'} onClick={() => onNavigate('users')} />
+                        {/* 👇 The New Button */}
+                        <NavBtn icon="🤝" label="Sponsors & Partners" active={currentView === 'sponsors'} onClick={() => onNavigate('sponsors')} />
+                    </>
+                )}
+
+                <div style={{...styles.divider, margin: '10px 0'}}></div>
                 <NavBtn icon="⚙️" label="Settings" active={currentView === 'settings'} onClick={() => onNavigate('settings')} />
                 
                 <div style={{marginTop: 'auto', paddingTop: '10px'}}>
-                    <div style={{...styles.divider, margin: '5px 0'}}></div>
                     <NavBtn 
                         icon="🌐" 
                         label="Main Website" 
@@ -60,7 +71,6 @@ const Sidebar = ({ isOpen, isMobile, user, currentView, onNavigate, onLogout }) 
     );
 };
 
-// Helper Component for Sidebar
 const NavBtn = ({ icon, label, active, onClick }) => (
   <button onClick={onClick} style={active ? styles.navActive : styles.navInactive}>
     <span style={{fontSize: '1.2rem'}}>{icon}</span>
@@ -68,7 +78,6 @@ const NavBtn = ({ icon, label, active, onClick }) => (
   </button>
 );
 
-// Styles specific to Sidebar
 const styles = {
   sidebar: { position: 'fixed', top: 0, left: 0, height: '100vh', backgroundColor: 'rgba(10, 15, 28, 0.95)', backdropFilter: 'blur(15px)', borderRight: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)', zIndex: 1000, overflow:'hidden' },
   brandText: { margin: 0, fontSize: '1.5rem', fontWeight: '900', color: 'white', letterSpacing: '2px' },
