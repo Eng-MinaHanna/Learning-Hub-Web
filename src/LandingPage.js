@@ -3,7 +3,7 @@ import API from './api'; // ✅ تم استيراد الـ API
 
 const LandingPage = ({ onGetStarted, user }) => {
     // ----------------------------------------------------------------
-    // 1️⃣ إعداد البيانات (يتم جلبها الآن من الداتا بيز)
+    // 1️⃣ إعداد البيانات
     // ----------------------------------------------------------------
     const [partners, setPartners] = useState([]);
     const [sponsors, setSponsors] = useState([]);
@@ -19,7 +19,6 @@ const LandingPage = ({ onGetStarted, user }) => {
             })
             .catch(err => {
                 console.error("Failed to fetch sponsors:", err);
-                // (اختياري) لو حصل خطأ ممكن تسيب المصفوفات فاضية أو تحط داتا وهمية
             });
     }, []);
 
@@ -88,7 +87,7 @@ const LandingPage = ({ onGetStarted, user }) => {
             </div>
 
             {/* ------------------------------------------------------ */}
-            {/* ✅ 3️⃣ PARTNERS & SPONSORS SECTIONS (Dynamic) */}
+            {/* ✅ 3️⃣ PARTNERS & SPONSORS SECTIONS (Updated Design) */}
             {/* ------------------------------------------------------ */}
             
             {/* Partners Section */}
@@ -103,9 +102,8 @@ const LandingPage = ({ onGetStarted, user }) => {
                             rel="noreferrer"
                             style={styles.logoWrapper} 
                             title={partner.name}
-                            className="logo-hover-effect" // 👈 ضيف الكلاس ده في ملف CSS
+                            className="logo-hover-effect" // ⚠️ مهم جداً: تأكد من إضافة CSS في ملف App.css
                         >
-                            {/* استخدمنا logo_url بدلاً من logo عشان ده اسم العمود في الداتا بيز */}
                             <img src={partner.logo_url} alt={partner.name} style={styles.brandLogo} />
                         </a>
                     )) : <p style={{color:'#666'}}>Loading Partners...</p>}
@@ -113,7 +111,7 @@ const LandingPage = ({ onGetStarted, user }) => {
             </div>
 
             {/* Sponsors Section */}
-            <div style={{...styles.brandsSection, background: 'rgba(0,0,0,0.2)'}}>
+            <div style={{...styles.brandsSection, background: 'linear-gradient(to top, rgba(0,0,0,0.4), transparent)'}}>
                 <h3 style={styles.sectionTitle}>💎 Official <span style={{color:'#00f2fe'}}>Sponsors</span></h3>
                 <div style={styles.logosGrid}>
                     {sponsors.length > 0 ? sponsors.map((sponsor) => (
@@ -124,7 +122,7 @@ const LandingPage = ({ onGetStarted, user }) => {
                             rel="noreferrer"
                             style={styles.logoWrapper} 
                             title={sponsor.name}
-                            className="logo-hover-effect" // 👈 ضيف الكلاس ده في ملف CSS
+                            className="logo-hover-effect"
                         >
                             <img src={sponsor.logo_url} alt={sponsor.name} style={styles.brandLogo} />
                         </a>
@@ -142,7 +140,7 @@ const LandingPage = ({ onGetStarted, user }) => {
 };
 
 // ------------------------------------------------------
-// ✅ 4️⃣ STYLES
+// ✅ 4️⃣ STYLES (Updated for Glassmorphism Circle)
 // ------------------------------------------------------
 const styles = {
     container: {
@@ -224,46 +222,58 @@ const styles = {
         fontSize: '2rem', background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '12px'
     },
     
-    // --- Styles for Partners & Sponsors ---
+    // --- Styles for Partners & Sponsors (DESIGN V2: CIRCLE GLASS) ---
     brandsSection: {
-        padding: '40px 20px',
+        padding: '60px 20px',
         textAlign: 'center',
         position: 'relative',
         zIndex: 10,
+        background: 'linear-gradient(to bottom, transparent, rgba(0,0,0,0.4))',
         borderTop: '1px solid rgba(255,255,255,0.05)'
     },
     sectionTitle: {
-        fontSize: '1.5rem',
-        fontWeight: '700',
-        marginBottom: '30px',
-        color: '#e2e8f0',
-        letterSpacing: '1px'
+        fontSize: '1.8rem',
+        fontWeight: '800',
+        marginBottom: '50px',
+        color: 'white',
+        letterSpacing: '1px',
+        textShadow: '0 4px 10px rgba(0,0,0,0.5)'
     },
     logosGrid: {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        gap: '40px',
+        gap: '30px',
         flexWrap: 'wrap',
         maxWidth: '1000px',
         margin: '0 auto'
     },
     logoWrapper: {
-        width: '120px',
-        height: '60px',
+        width: '130px',
+        height: '130px',
+        borderRadius: '50%', // ✅ دائري
+        
+        // زجاجي + إطار ذهبي
+        background: 'rgba(255, 255, 255, 0.05)', 
+        backdropFilter: 'blur(8px)',
+        border: '2px solid #ffd700', // ذهبي
+        boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+        
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        // الفلتر الافتراضي: أبيض بالكامل
-        filter: 'grayscale(100%) brightness(0) invert(1)',
-        opacity: 0.7,
-        transition: 'all 0.3s ease',
+        padding: '20px',
+        transition: 'all 0.4s ease',
         cursor: 'pointer',
+        overflow: 'hidden'
     },
     brandLogo: {
         maxWidth: '100%',
         maxHeight: '100%',
-        objectFit: 'contain'
+        objectFit: 'contain',
+        // اللون الفضي/الأبيض اللامع
+        filter: 'grayscale(100%) brightness(2) opacity(0.8)', 
+        transition: 'all 0.4s ease'
     },
     
     footer: {
