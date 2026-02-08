@@ -29,7 +29,9 @@ const Sidebar = ({ isOpen, isMobile, user, currentView, onNavigate, onLogout }) 
 
             <nav style={styles.navStack}>
                 {user.role !== 'company' && <NavBtn icon="🏠" label="Home" active={currentView === 'home'} onClick={() => onNavigate('home')} />}
+                
                 <NavBtn icon="💎" label={user.role === 'company' ? "Find Talent (CVs)" : "Top Performances"} active={currentView === 'leaderboard'} onClick={() => onNavigate('leaderboard')} />
+                
                 <NavBtn icon="🎖️" label="Our Team" active={currentView === 'team'} onClick={() => onNavigate('team')} />
 
                 {user.role !== 'company' && (
@@ -44,6 +46,7 @@ const Sidebar = ({ isOpen, isMobile, user, currentView, onNavigate, onLogout }) 
                     <>
                         <div style={{...styles.divider, margin: '10px 0'}}></div>
                         <span style={{fontSize:'0.75rem', color:'#64748b', paddingLeft:'15px', marginBottom:'5px', fontWeight:'bold'}}>ADMIN CONTROLS</span>
+                        
                         <NavBtn icon="👥" label="Users Management" active={currentView === 'users'} onClick={() => onNavigate('users')} />
                         <NavBtn icon="🤝" label="Sponsors & Partners" active={currentView === 'sponsors'} onClick={() => onNavigate('sponsors')} />
                     </>
@@ -74,7 +77,14 @@ const NavBtn = ({ icon, label, active, onClick }) => (
 );
 
 const styles = {
-  sidebar: { position: 'fixed', top: 0, left: 0, height: '100vh', backgroundColor: 'rgba(10, 15, 28, 0.95)', backdropFilter: 'blur(15px)', borderRight: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)', zIndex: 1000, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' },
+  sidebar: { 
+      position: 'fixed', top: 0, left: 0, height: '100vh', 
+      backgroundColor: 'rgba(10, 15, 28, 0.95)', backdropFilter: 'blur(15px)', 
+      borderRight: '1px solid rgba(255,255,255,0.05)', display: 'flex', 
+      flexDirection: 'column', transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)', 
+      zIndex: 1000, overflowY: 'auto', overflowX: 'hidden',
+      overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch'
+  },
   brandText: { margin: 0, fontSize: '1.5rem', fontWeight: '900', color: 'white', letterSpacing: '2px' },
   divider: { height: '1px', background: 'linear-gradient(90deg, transparent, rgba(79,172,254,0.3), transparent)', margin: '15px 0' },
   userInfo: { display: 'flex', alignItems: 'center', gap: '12px', padding: '15px', margin: '0 20px 30px', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '15px', border: '1px solid rgba(255,255,255,0.05)' },
