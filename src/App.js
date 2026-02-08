@@ -7,10 +7,9 @@ import AuthPage from './AuthPage';
 import LandingPage from './LandingPage';
 import CalendarView from './CalendarView';
 import CommunityView from './CommunityView';
-import AdminUsersView from './AdminUsersView';
 import NotificationsModal from './NotificationsModal';
 
-// ⚠️ لاحظ: شيلنا استيراد SettingsView و LeaderboardView عشان هنكتبهم تحت بالكود الجديد المحدث
+// (تم دمج باقي المكونات بالأسفل)
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -54,6 +53,13 @@ function App() {
     if (isMobile) setIsSidebarOpen(false);
   }, [currentView, isMobile]);
 
+  // ✅ توجيه الشركة مباشرة للـ Leaderboard
+  useEffect(() => {
+      if (user?.role === 'company' && currentView === 'home') {
+          setCurrentView('leaderboard');
+      }
+  }, [user]);
+
   const fetchData = async () => {
     if (activities.length === 0) setLoading(true); 
     
@@ -68,7 +74,7 @@ function App() {
           if (courseToRestore) setSelectedCourse(courseToRestore);
       }
 
-      if (user?.email) {
+      if (user?.email && user.role !== 'company') {
         const promises = data.map(course => 
            API.get(`/progress/calculate/${course.id}/${user.email}`)
              .then(res => ({id: course.id, val: res.data?.percent || 0}))
@@ -191,16 +197,21 @@ function App() {
           </div>
 
           <nav style={styles.navStack}>
-            <NavBtn icon="🏠" label="Home" active={currentView === 'home'} onClick={() => setCurrentView('home')} />
-            <NavBtn icon="📊" label="Dashboard" active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} />
-            <NavBtn icon="📅" label="Schedule" active={currentView === 'schedule'} onClick={() => setCurrentView('schedule')} />
+            {user.role !== 'company' && <NavBtn icon="🏠" label="Home" active={currentView === 'home'} onClick={() => setCurrentView('home')} />}
             
-            <NavBtn icon="🏆" label="Top Performances" active={currentView === 'leaderboard'} onClick={() => setCurrentView('leaderboard')} />
+            <NavBtn icon="💎" label={user.role === 'company' ? "Find Talent (CVs)" : "Top Performances"} active={currentView === 'leaderboard'} onClick={() => setCurrentView('leaderboard')} />
             
             <NavBtn icon="🎖️" label="Our Team" active={currentView === 'team'} onClick={() => setCurrentView('team')} />
 
+            {user.role !== 'company' && (
+                <>
+                    <NavBtn icon="📊" label="Dashboard" active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} />
+                    <NavBtn icon="📅" label="Schedule" active={currentView === 'schedule'} onClick={() => setCurrentView('schedule')} />
+                    <NavBtn icon="🌍" label="Community" active={currentView === 'community'} onClick={() => setCurrentView('community')} />
+                </>
+            )}
+
             {user?.role === 'admin' && <NavBtn icon="👥" label="Admin Panel" active={currentView === 'users'} onClick={() => setCurrentView('users')} />}
-            <NavBtn icon="🌍" label="Community" active={currentView === 'community'} onClick={() => setCurrentView('community')} />
             <NavBtn icon="⚙️" label="Settings" active={currentView === 'settings'} onClick={() => setCurrentView('settings')} />
             
             <div style={{marginTop: 'auto', paddingTop: '10px'}}>
@@ -226,8 +237,11 @@ function App() {
               paddingLeft: (!isSidebarOpen || isMobile) ? '70px' : '0',  
               marginTop: isMobile ? '10px' : '0'     
           }}>
-             {currentView === 'dashboard' && !selectedCourse && (
+             {currentView === 'dashboard' && !selectedCourse && user.role !== 'company' && (
                 <h1 style={styles.welcomeText}>Hello, {user?.name?.split(' ')[0]}! ⚡</h1>
+             )}
+             {user.role === 'company' && currentView === 'leaderboard' && (
+                <h1 style={styles.welcomeText}>Welcome, {user.name} 👋 <span style={{fontSize:'1rem', color:'#888'}}>Explore our top talents</span></h1>
              )}
              {currentView === 'dashboard' && (
                <div style={styles.searchContainer}>
@@ -236,7 +250,7 @@ function App() {
              )}
           </div>
           
-          {currentView === 'dashboard' && !selectedCourse && (
+          {currentView === 'dashboard' && !selectedCourse && user.role !== 'company' && (
             <div style={styles.contentFadeIn}>
               <div style={styles.statsGrid}>
                 <DashboardCard title="Total Tracks" value={stats.total_activities} icon="📚" color="#4facfe" />
@@ -297,7 +311,101 @@ function App() {
   );
 }
 
-// ✅ 1. SettingsView المحدثة: إضافة خانات LinkedIn و CV
+// ✅ 1. AdminUsersView المحدثة: زرار إضافة الشركات
+const AdminUsersView = ({ currentUser }) => {
+    const [users, setUsers] = useState([]);
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [newUser, setNewUser] = useState({ name: '', email: '', phone: '', password: '', role: 'company' });
+
+    const fetchUsers = () => {
+        API.get('/users').then(res => setUsers(res.data)).catch(() => {});
+    };
+
+    useEffect(() => { fetchUsers(); }, []);
+
+    const handleCreateUser = (e) => {
+        e.preventDefault();
+        API.post('/admin/add-user', newUser)
+           .then(res => {
+               if (res.data.status === 'Success') {
+                   alert("User Created Successfully! 🎉");
+                   setShowAddForm(false);
+                   setNewUser({ name: '', email: '', phone: '', password: '', role: 'company' });
+                   fetchUsers();
+               } else {
+                   alert(res.data.message);
+               }
+           });
+    };
+
+    return (
+        <div style={{ maxWidth: '1000px', margin: '0 auto', paddingBottom: '50px' }}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'30px'}}>
+                <h2 style={{ color: 'white', margin:0 }}>👥 User Management</h2>
+                <button onClick={() => setShowAddForm(!showAddForm)} style={{...styles.actionBtn, background:'#00e676', color:'#050810'}}>
+                    {showAddForm ? 'Cancel' : '➕ Add Company/User'}
+                </button>
+            </div>
+
+            {showAddForm && (
+                <form onSubmit={handleCreateUser} style={{background:'rgba(255,255,255,0.05)', padding:'20px', borderRadius:'15px', marginBottom:'30px', border:'1px solid #4facfe'}}>
+                    <h4 style={{color:'#4facfe', marginTop:0}}>Create New Account</h4>
+                    <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px'}}>
+                        <input placeholder="Name (e.g. Vodafone)" value={newUser.name} onChange={e=>setNewUser({...newUser, name: e.target.value})} style={styles.sidebarInput} required />
+                        <input placeholder="Email" value={newUser.email} onChange={e=>setNewUser({...newUser, email: e.target.value})} style={styles.sidebarInput} required />
+                        <input placeholder="Phone" value={newUser.phone} onChange={e=>setNewUser({...newUser, phone: e.target.value})} style={styles.sidebarInput} />
+                        <input placeholder="Password" value={newUser.password} onChange={e=>setNewUser({...newUser, password: e.target.value})} style={styles.sidebarInput} required />
+                        <select value={newUser.role} onChange={e=>setNewUser({...newUser, role: e.target.value})} style={styles.sidebarInput}>
+                            <option value="company">🏢 Company</option>
+                            <option value="instructor">🎓 Instructor</option>
+                            <option value="student">👨‍🎓 Student</option>
+                            <option value="admin">🛡️ Admin</option>
+                        </select>
+                    </div>
+                    <button type="submit" style={{...styles.continueBtn, marginTop:'15px', width:'auto', padding:'10px 30px'}}>Create Account</button>
+                </form>
+            )}
+
+            <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', color: 'white' }}>
+                    <thead>
+                        <tr style={{ borderBottom: '2px solid #333', textAlign: 'left' }}>
+                            <th style={{ padding: '15px' }}>User</th>
+                            <th style={{ padding: '15px' }}>Role</th>
+                            <th style={{ padding: '15px' }}>Email</th>
+                            <th style={{ padding: '15px' }}>Joined</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {users.map(u => (
+                            <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <td style={{ padding: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{ width: '35px', height: '35px', borderRadius: '50%', background: '#333', overflow: 'hidden' }}>
+                                        {u.profile_pic ? <img src={u.profile_pic} alt="P" style={{ width: '100%', height: '100%' }} /> : <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}>{u.name.charAt(0)}</div>}
+                                    </div>
+                                    {u.name}
+                                </td>
+                                <td style={{ padding: '15px' }}>
+                                    <span style={{ 
+                                        padding: '5px 10px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 'bold',
+                                        background: u.role === 'admin' ? 'rgba(255, 215, 0, 0.1)' : u.role === 'company' ? 'rgba(0, 230, 118, 0.1)' : 'rgba(79, 172, 254, 0.1)',
+                                        color: u.role === 'admin' ? '#ffd700' : u.role === 'company' ? '#00e676' : '#4facfe'
+                                    }}>
+                                        {u.role.toUpperCase()}
+                                    </span>
+                                </td>
+                                <td style={{ padding: '15px', color: '#aaa' }}>{u.email}</td>
+                                <td style={{ padding: '15px', color: '#666' }}>{new Date(u.created_at).toLocaleDateString()}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+// ✅ 2. SettingsView المحدثة: إضافة خانات LinkedIn و CV
 const SettingsView = ({ user, onUpdateUser }) => {
   const [formData, setFormData] = useState({
       name: user.name || '', email: user.email || '', phone: user.phone || '',
@@ -350,7 +458,7 @@ const SettingsView = ({ user, onUpdateUser }) => {
   );
 };
 
-// ✅ 2. LeaderboardView المحدثة: عرض الـ LinkedIn و CV للشركات
+// ✅ 3. LeaderboardView المحدثة: عرض الـ LinkedIn و CV للشركات
 const LeaderboardView = () => {
   const [users, setUsers] = useState([]);
   useEffect(() => { API.get('/leaderboard').then(res => setUsers(res.data)).catch(() => {}); }, []);
@@ -392,7 +500,6 @@ const LeaderboardView = () => {
   );
 };
 
-// ✅ 3. TeamView (كان ناقص في الكود بتاعك)
 const TeamView = () => {
     const [team, setTeam] = useState([]);
     useEffect(() => {
@@ -494,6 +601,7 @@ const styles = {
   editBtnSmall: { width: '35px', height:'35px', background: 'rgba(255, 255, 255, 0.05)', color: '#fff', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '10px', cursor: 'pointer', display:'flex', alignItems:'center', justifyContent:'center' },
   toggleBtn: { position: 'fixed', zIndex: 3000, background: '#4facfe', color: '#050810', border: 'none', borderRadius: '10px', width: '40px', height: '40px', cursor: 'pointer', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 15px rgba(79,172,254,0.4)', transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)' },
   fab: { position: 'fixed', bottom: '30px', right: '30px', width: '65px', height: '65px', borderRadius: '22px', background: 'linear-gradient(135deg, #4facfe, #00f2fe)', color: '#050810', fontSize: '35px', border: 'none', cursor: 'pointer', boxShadow: '0 15px 30px rgba(79,172,254,0.5)', zIndex:100, fontWeight: 'bold' },
+  actionBtn: { padding: '8px 16px', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' },
   sidebarInput: { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', outline: 'none' }
 };
 
