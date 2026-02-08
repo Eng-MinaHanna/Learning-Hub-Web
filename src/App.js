@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import API from './api'; 
-import './App.css';
+import './App.css'; // ✅ Ensure App.css exists in the src folder!
 import AddCourseModal from './AddCourseModal';
 import CourseDetailsModal from './CourseDetailsModal';
 import EditActivityModal from './EditActivityModal';
@@ -9,7 +9,7 @@ import LandingPage from './LandingPage';
 import CalendarView from './CalendarView';
 import CommunityView from './CommunityView';
 import NotificationsModal from './NotificationsModal';
-import SponsorsPartnersBoard from './SponsorsPartnersBoard';
+import SponsorsPartnersBoard from './SponsorsPartnersBoard'; // ✅ Imported
 
 // ✅ Import components from separate files
 import AdminUsersView from './AdminUsersView';
