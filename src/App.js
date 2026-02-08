@@ -34,7 +34,7 @@ function App() {
   const [progressData, setProgressData] = useState({});
   const [unreadCount, setUnreadCount] = useState(0);
   const [showAuth, setShowAuth] = useState(false);
-  const [loading, setLoading] = useState(true); 
+  const [loading, setLoading] = useState(true); // نتركها True لضمان عدم ظهور محتوى فارغ
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
 
@@ -79,63 +79,52 @@ function App() {
     } catch (e) { }
   };
 
-  // ✅ جلب البيانات بطريقة ذكية (Sequential + Parallel)
+  // ✅ جلب البيانات الموحد (تم تحسينه للسرعة القصوى)
   const fetchData = async () => {
     setLoading(true); 
     try {
-      // 1. جلب الأنشطة أولاً (ده الأساس)
-      const actsRes = await API.get('/activities/all');
+      // 1. طلب الأنشطة، الإحصائيات، والتنبيهات "معاً" في نفس اللحظة (Parallel)
+      const [actsRes, statsRes] = await Promise.all([
+        API.get('/activities/all').catch(() => ({ data: [] })),
+        (user?.role === 'admin' ? API.get('/stats') : Promise.resolve({ data: null })).catch(() => ({ data: null })),
+        checkNotifications()
+      ]);
+
       const data = Array.isArray(actsRes.data) ? actsRes.data : [];
       setActivities(data);
 
       const totalTracks = data.length;
       const totalWorkshops = data.filter(a => a.type?.toLowerCase() === 'workshop').length;
 
-      // 2. تعيين إحصائيات مبدئية من الأنشطة
-      setStats(prev => ({ ...prev, total_activities: totalTracks, total_workshops: totalWorkshops }));
-
-      const criticalRequests = [];
-
-      // 3. لو أدمن جلب باقي الإحصائيات في الخلفية
-      if (user?.role === 'admin') {
-        criticalRequests.push(
-          API.get('/stats').then(res => {
-            setStats({
-              total_activities: totalTracks,
-              total_workshops: totalWorkshops,
-              total_students: res.data?.total_students || 0
-            });
-          }).catch(() => {})
-        );
+      // 2. تعيين الإحصائيات (إما من السيرفر للأدمن أو حسابية للطلاب)
+      if (user?.role === 'admin' && statsRes.data) {
+        setStats({
+          total_activities: totalTracks,
+          total_workshops: totalWorkshops,
+          total_students: statsRes.data.total_students || 0
+        });
       } else {
-        setStats(prev => ({ ...prev, total_students: '150+' }));
+        setStats({ total_activities: totalTracks, total_workshops: totalWorkshops, total_students: '150+' });
       }
 
-      // 4. جلب التقدم في الخلفية
-      if (user?.email && user.role !== 'company') {
+      // 3. طلبات البروجرس لكل الكورسات "معاً" (Parallel)
+      if (user?.email && user.role !== 'company' && data.length > 0) {
         const progressPromises = data.map(course => 
-          API.get(`/progress/calculate/${course.id}/${user.email}`)
-            .then(res => ({id: course.id, val: res.data?.percent || 0}))
-            .catch(() => ({id: course.id, val: 0}))
+           API.get(`/progress/calculate/${course.id}/${user.email}`)
+             .then(res => ({id: course.id, val: res.data?.percent || 0}))
+             .catch(() => ({id: course.id, val: 0}))
         );
-        criticalRequests.push(
-          Promise.all(progressPromises).then(results => {
-            const newProgress = {};
-            results.forEach(r => { newProgress[r.id] = r.val });
-            setProgressData(newProgress);
-          })
-        );
-        criticalRequests.push(checkNotifications());
+        const results = await Promise.all(progressPromises);
+        const newProgress = {};
+        results.forEach(r => { newProgress[r.id] = r.val });
+        setProgressData(newProgress);
       }
-
-      // انتظر العمليات الفرعية تخلص
-      await Promise.all(criticalRequests);
 
     } catch (err) {
       console.error("Global Fetch Error", err);
     } finally {
-      // ✅ مهما حصل اقفل شاشة التحميل بعد 800 مللي ثانية
-      setTimeout(() => setLoading(false), 800);
+      // 🚀 الموقع جاهز الآن بنسبة 100%
+      setTimeout(() => setLoading(false), 500); 
     }
   };
 
