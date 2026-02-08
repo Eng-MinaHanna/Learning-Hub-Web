@@ -72,6 +72,7 @@ const AuthPage = ({ onLogin }) => {
                                     <option value="student">👨‍🎓 Student</option>
                                     <option value="instructor">👨‍🏫 Instructor</option>
                                     <option value="admin">🛡️ Admin</option>
+                                    {/* ❌ شيلنا خيار Company من هنا عشان التسجيل يبقى عن طريق الأدمن بس */}
                                 </select>
                             </div>
                             {formData.role !== 'student' && (
@@ -181,7 +182,7 @@ const styles = {
         fontSize: '1rem',
         outline: 'none',
         transition: '0.3s',
-        boxSizing: 'border-box' // مهم جداً عشان الحجم ميبوظش
+        boxSizing: 'border-box'
     },
     select: {
         width: '100%',
