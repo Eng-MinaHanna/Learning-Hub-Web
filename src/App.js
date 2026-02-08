@@ -14,7 +14,7 @@ import AdminUsersView from './AdminUsersView';
 import SettingsView from './SettingsView';
 import LeaderboardView from './LeaderboardView';
 import Sidebar from './Sidebar';
-import LoadingEffect from './LoadingEffect'; // ✅ تم استيراد المكون الجديد
+import LoadingEffect from './LoadingEffect';
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -48,6 +48,7 @@ function App() {
       const mobile = window.innerWidth < 1024;
       setIsMobile(mobile);
       if (!mobile) setIsSidebarOpen(true);
+      else setIsSidebarOpen(false); // Close on mobile resize
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -66,7 +67,6 @@ function App() {
 
   const fetchData = async () => {
     if (activities.length === 0) setLoading(true); 
-    
     try {
       const actsRes = await API.get('/activities/all');
       const data = Array.isArray(actsRes.data) ? actsRes.data : [];
@@ -98,20 +98,9 @@ function App() {
     finally { setLoading(false); }
   };
 
-  const checkNotifications = () => {
-    if (!user?.id) return;
-    API.get(`/notifications/${user.id}`)
-      .then(res => setUnreadCount(Array.isArray(res.data) ? res.data.filter(n => !n.is_read).length : 0))
-      .catch(() => {});
-  };
+  useEffect(() => { if (user) fetchData(); }, [user?.id]);
 
-  useEffect(() => {
-    if (user) fetchData();
-  }, [user?.id]);
-
-  const handleLogout = () => {
-    setUser(null); localStorage.clear(); setCurrentView('home');
-  };
+  const handleLogout = () => { setUser(null); localStorage.clear(); setCurrentView('home'); };
 
   const handleUserUpdate = (updatedData) => {
     const newUser = { ...user, ...updatedData };
@@ -136,10 +125,8 @@ function App() {
 
   const handleDelete = async (id) => {
     if (window.confirm("⚠️ Confirm Delete?")) {
-      try {
-        await API.delete(`/activities/delete/${id}`);
-        fetchData();
-      } catch (err) { alert("Error deleting"); }
+      try { await API.delete(`/activities/delete/${id}`); fetchData(); } 
+      catch (err) { alert("Error deleting"); }
     }
   };
 
@@ -152,7 +139,6 @@ function App() {
     );
   }
 
-  // ✅ استخدام LoadingEffect الموحد
   if (loading && activities.length === 0) {
       return (
           <div style={styles.loadingContainer}>
@@ -165,13 +151,12 @@ function App() {
     <div style={styles.appContainer}>
       <div style={styles.backgroundGrid}></div>
       
-      {/* ✅ زرار التحكم المعدل (Floating Toggle) */}
+      {/* ✅ الزرار المعدل: يتحرك بذكاء مع الـ Sidebar */}
       <button 
         onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
         style={{
           ...styles.toggleBtn, 
-          left: '20px', 
-          top: '20px'
+          left: (isSidebarOpen && !isMobile) ? '290px' : '20px', 
         }}
       >
         {isSidebarOpen ? '✕' : '☰'}
@@ -198,9 +183,9 @@ function App() {
                 <h1 style={styles.welcomeText}>Hello, {user?.name?.split(' ')[0]}! ⚡</h1>
              )}
              {user.role === 'company' && currentView === 'leaderboard' && (
-                <h1 style={styles.welcomeText}>Welcome, {user.name} 👋 <span style={{fontSize:'1rem', color:'#888'}}>Explore our top talents</span></h1>
+                <h1 style={styles.welcomeText}>Welcome, {user.name} 👋 <span style={{fontSize:'1rem', color:'#888'}}>Explore our talents</span></h1>
              )}
-             {currentView === 'dashboard' && (
+             {currentView === 'dashboard' && !selectedCourse && (
                <div style={styles.searchContainer}>
                   <input placeholder="Search tracks..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={styles.searchInput} />
                </div>
@@ -217,7 +202,7 @@ function App() {
 
               <div style={styles.coursesGrid}>
                 {filteredActivities.map(act => (
-                  <div key={act.id} style={styles.courseCard}>
+                  <div key={act.id} style={styles.courseCard} className="hover-card">
                     <div style={styles.imageBox}>
                        {act.file_path ? <img src={act.file_path} alt="C" style={styles.courseImg} /> : <div style={styles.coursePlaceholder}>IEEE</div>}
                        <div style={styles.typeBadge}>{act.type}</div>
@@ -225,7 +210,6 @@ function App() {
                     <div style={{ padding: '20px' }}>
                       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
                           <h3 style={styles.courseTitle}>{act.title}</h3>
-                          
                           {(user.role === 'admin' || (user.role === 'instructor' && act.created_by === user.id)) && (
                             <div style={{display: 'flex', gap: '8px'}}>
                                 <button onClick={() => setEditingActivity(act)} style={styles.editBtnSmall}>✏️</button>
@@ -233,12 +217,10 @@ function App() {
                             </div>
                           )}
                       </div>
-
                       <div style={styles.progressSection}>
                           <div style={styles.progressText}>Progress: {progressData[act.id] || 0}%</div>
                           <div style={styles.barBg}><div style={{...styles.barFill, width: `${progressData[act.id] || 0}%`}}></div></div>
                       </div>
-                      
                       <button onClick={() => handleOpenCourse(act)} style={styles.continueBtn}>Continue ▶️</button>
                     </div>
                   </div>
@@ -269,48 +251,6 @@ function App() {
   );
 }
 
-const TeamView = () => {
-    const [team, setTeam] = useState([]);
-    useEffect(() => {
-        API.get('/team').then(res => setTeam(res.data)).catch(() => {});
-    }, []);
-
-    const admins = team.filter(m => m.role === 'admin');
-    const instructors = team.filter(m => m.role === 'instructor');
-
-    const MemberCard = ({ m }) => (
-        <div style={{background: 'rgba(30, 41, 59, 0.4)', padding: '25px', borderRadius: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'center', backdropFilter: 'blur(10px)', boxShadow: '0 4px 15px rgba(0,0,0,0.1)'}}>
-            <div style={{width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', marginBottom: '15px', border: `3px solid ${m.role === 'admin' ? '#ffd700' : '#4facfe'}`}}>
-                {m.profile_pic ? <img src={m.profile_pic} style={{width: '100%', height: '100%', objectFit: 'cover'}} alt="P" /> : <div style={{width:'100%', height:'100%', background:'#333', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'2rem', color:'#fff'}}>{m.name.charAt(0)}</div>}
-            </div>
-            <h3 style={{margin: '0 0 5px 0', color: 'white', fontSize: '1.1rem'}}>{m.name}</h3>
-            <span style={{fontSize: '0.75rem', color: m.role === 'admin' ? '#ffd700' : '#4facfe', background: m.role === 'admin' ? 'rgba(255, 215, 0, 0.1)' : 'rgba(79, 172, 254, 0.1)', padding: '4px 12px', borderRadius: '20px', fontWeight: 'bold', letterSpacing: '1px'}}>{m.role.toUpperCase()}</span>
-        </div>
-    );
-
-    return (
-        <div style={{paddingBottom: '50px', animation: 'fadeIn 0.5s ease'}}>
-            <h2 style={{color: 'white', marginBottom: '40px', borderLeft: '5px solid #4facfe', paddingLeft: '15px', fontSize: '2rem'}}>🏆 Meet Our Heroes</h2>
-            {admins.length > 0 && (
-                <>
-                    <h3 style={{color: '#ffd700', margin: '20px 0 20px', fontSize: '1.4rem', borderBottom: '1px solid rgba(255, 215, 0, 0.2)', paddingBottom: '10px', display: 'inline-block'}}>High Board & Admins</h3>
-                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '25px', marginBottom: '50px'}}>
-                        {admins.map((m, i) => <MemberCard key={i} m={m} />)}
-                    </div>
-                </>
-            )}
-            {instructors.length > 0 && (
-                <>
-                    <h3 style={{color: '#4facfe', margin: '20px 0 20px', fontSize: '1.4rem', borderBottom: '1px solid rgba(79, 172, 254, 0.2)', paddingBottom: '10px', display: 'inline-block'}}>Technical Instructors</h3>
-                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '25px'}}>
-                        {instructors.map((m, i) => <MemberCard key={i} m={m} />)}
-                    </div>
-                </>
-            )}
-        </div>
-    );
-};
-
 const DashboardCard = ({ title, value, icon, color }) => (
   <div style={{ ...styles.statCard, borderLeft: `5px solid ${color}` }}>
     <div style={{ ...styles.iconCircle, backgroundColor: `${color}22`, color: color }}>{icon}</div>
@@ -321,24 +261,13 @@ const DashboardCard = ({ title, value, icon, color }) => (
   </div>
 );
 
+// ✅ الأنماط المحدثة (Styles)
 const styles = {
   appContainer: { fontFamily: "'Cairo', sans-serif", backgroundColor: '#050810', color: 'white', minHeight: '100vh', position: 'relative', overflowX: 'hidden' },
   backgroundGrid: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundImage: 'radial-gradient(rgba(79, 172, 254, 0.03) 2px, transparent 2px)', backgroundSize: '50px 50px', zIndex: 0 },
   loadingContainer: { position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh', backgroundColor: '#050810', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
   mainArea: { padding: '40px 20px', transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)', position: 'relative', zIndex: 1, minHeight: '100vh' },
-  
-  // ✅ تحديث الهيدر ليتناسب مع الزرار العائم
-  pageHeader: { 
-    display: 'flex', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    marginBottom: '40px', 
-    flexWrap: 'wrap', 
-    gap: '20px', 
-    paddingLeft: '70px', 
-    paddingTop: '10px' 
-  },
-  
+  pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', flexWrap: 'wrap', gap: '20px', paddingLeft: '70px', paddingTop: '10px' },
   welcomeText: { color: 'white', margin: 0, fontSize: '1.6rem', fontWeight: '800' },
   searchContainer: { background: 'rgba(255,255,255,0.03)', padding: '10px 20px', borderRadius: '30px', border: '1px solid rgba(255,255,255,0.08)', width: '280px' },
   searchInput: { background: 'transparent', border: 'none', color: 'white', outline: 'none', width: '100%', fontSize: '0.9rem' },
@@ -361,10 +290,11 @@ const styles = {
   deleteBtnSmall: { width: '35px', height:'35px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '10px', cursor: 'pointer', display:'flex', alignItems:'center', justifyContent:'center' },
   editBtnSmall: { width: '35px', height:'35px', background: 'rgba(255, 255, 255, 0.05)', color: '#fff', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '10px', cursor: 'pointer', display:'flex', alignItems:'center', justifyContent:'center' },
   
-  // ✅ ستايل زر التبديل العصري
+  // ✅ ستايل زر التبديل العصري مع خاصية التحرك الذكي
   toggleBtn: { 
     position: 'fixed', 
     zIndex: 3000, 
+    top: '20px',
     background: 'rgba(79, 172, 254, 0.9)', 
     backdropFilter: 'blur(5px)',
     color: '#050810', 
@@ -378,12 +308,10 @@ const styles = {
     alignItems: 'center', 
     justifyContent: 'center', 
     boxShadow: '0 4px 15px rgba(79,172,254,0.3)', 
-    transition: '0.3s all ease' 
+    transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)' // نفس سرعة الـ Sidebar
   },
   
-  fab: { position: 'fixed', bottom: '30px', right: '30px', width: '65px', height: '65px', borderRadius: '22px', background: 'linear-gradient(135deg, #4facfe, #00f2fe)', color: '#050810', fontSize: '35px', border: 'none', cursor: 'pointer', boxShadow: '0 15px 30px rgba(79,172,254,0.5)', zIndex:100, fontWeight: 'bold' },
-  actionBtn: { padding: '8px 16px', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' },
-  sidebarInput: { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', outline: 'none' }
+  fab: { position: 'fixed', bottom: '30px', right: '30px', width: '65px', height: '65px', borderRadius: '22px', background: 'linear-gradient(135deg, #4facfe, #00f2fe)', color: '#050810', fontSize: '35px', border: 'none', cursor: 'pointer', boxShadow: '0 15px 30px rgba(79,172,254,0.5)', zIndex:100, fontWeight: 'bold' }
 };
 
 export default App;
