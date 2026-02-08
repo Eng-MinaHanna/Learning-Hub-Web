@@ -81,41 +81,41 @@ function App() {
     } catch (e) { }
   };
 
-  const fetchData = async () => {
-    // 1. منطق ذكي: لو الداتا موجودة (activities)، لا تظهر شاشة التحميل الكبيرة
+ const fetchData = async () => {
     if (activities.length === 0) setLoading(true); 
     setSyncError(false);
 
-    // 🕒 إعداد تايم أوت لمدة 12 ثانية
     const timeoutId = setTimeout(() => {
-        if (activities.length === 0) { // فقط لو الموقع لسه "أبيض" نظهر نافذة الخطأ
+        if (activities.length === 0) { 
             setSyncError(true);
             setLoading(false);
         }
-    }, 12000); 
+    }, 15000); 
 
     try {
-      // 2. جلب الأنشطة فوراً (الأساس)
-      const actsRes = await API.get('/activities/all');
+      // ✅ تعديل مهم: حماية الطلبات الفردية باستخدام .catch
+      const [actsRes, statsRes] = await Promise.all([
+        API.get('/activities/all').catch(() => ({ data: [] })),
+        (user?.role === 'admin' ? API.get('/stats').catch(() => ({ data: { total_students: 0 } })) : Promise.resolve({ data: null })),
+        checkNotifications().catch(() => {})
+      ]);
+
+      clearTimeout(timeoutId);
+
       const data = Array.isArray(actsRes.data) ? actsRes.data : [];
       setActivities(data);
       
-      // بمجرد ما الأنشطة توصل، نلغي شاشة التحميل فوراً
       setLoading(false);
-      clearTimeout(timeoutId);
 
-      // 3. تحديث باقي البيانات في الخلفية (Background) بدون تعطيل اليوزر
       const totalTracks = data.length;
       const totalWorkshops = data.filter(a => a.type?.toLowerCase() === 'workshop').length;
 
-      if (user?.role === 'admin') {
-        API.get('/stats').then(res => {
-          setStats({
-            total_activities: totalTracks,
-            total_workshops: totalWorkshops,
-            total_students: res.data?.total_students || 0
-          });
-        }).catch(() => {});
+      if (user?.role === 'admin' && statsRes?.data) {
+        setStats({
+          total_activities: totalTracks,
+          total_workshops: totalWorkshops,
+          total_students: statsRes.data.total_students || 0
+        });
       } else {
         setStats({ total_activities: totalTracks, total_workshops: totalWorkshops, total_students: '150+' });
       }
@@ -132,11 +132,10 @@ function App() {
           setProgressData(newProgress);
         }).catch(() => {});
       }
-      
-      checkNotifications();
 
     } catch (err) {
       console.error("Global Fetch Error", err);
+      // لو الأنشطة مجاتش خالص بس هو اللي نطلع إيرور
       if (activities.length === 0) setSyncError(true);
     } finally {
       if (activities.length > 0) setLoading(false);
