@@ -34,7 +34,7 @@ function App() {
   const [progressData, setProgressData] = useState({});
   const [unreadCount, setUnreadCount] = useState(0);
   const [showAuth, setShowAuth] = useState(false);
-  const [loading, setLoading] = useState(false); 
+  const [loading, setLoading] = useState(true); 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
 
@@ -53,7 +53,6 @@ function App() {
     if (isMobile) setIsSidebarOpen(false);
   }, [currentView, isMobile]);
 
-  // ✅ تعريف الدوال المفقودة اللي كانت بتبوظ الـ Build
   const handleOpenCourse = (course) => { 
     setSelectedCourse(course); 
     localStorage.setItem('activeCourseId', course?.id); 
@@ -80,46 +79,74 @@ function App() {
     } catch (e) { }
   };
 
-  // ✅ جلب البيانات بترتيب (عشان السيرفر ميبوظش)
+  // ✅ جلب البيانات بطريقة ذكية (Sequential + Parallel)
   const fetchData = async () => {
-    if (activities.length === 0) setLoading(true); 
+    setLoading(true); 
     try {
+      // 1. جلب الأنشطة أولاً (ده الأساس)
       const actsRes = await API.get('/activities/all');
       const data = Array.isArray(actsRes.data) ? actsRes.data : [];
       setActivities(data);
 
-      // حساب الأرقام فوراً
       const totalTracks = data.length;
       const totalWorkshops = data.filter(a => a.type?.toLowerCase() === 'workshop').length;
 
+      // 2. تعيين إحصائيات مبدئية من الأنشطة
+      setStats(prev => ({ ...prev, total_activities: totalTracks, total_workshops: totalWorkshops }));
+
+      const criticalRequests = [];
+
+      // 3. لو أدمن جلب باقي الإحصائيات في الخلفية
       if (user?.role === 'admin') {
-        const res = await API.get('/stats');
-        setStats({ total_activities: totalTracks, total_workshops: totalWorkshops, total_students: res.data?.total_students || 0 });
+        criticalRequests.push(
+          API.get('/stats').then(res => {
+            setStats({
+              total_activities: totalTracks,
+              total_workshops: totalWorkshops,
+              total_students: res.data?.total_students || 0
+            });
+          }).catch(() => {})
+        );
       } else {
-        setStats({ total_activities: totalTracks, total_workshops: totalWorkshops, total_students: '150+' });
+        setStats(prev => ({ ...prev, total_students: '150+' }));
       }
 
+      // 4. جلب التقدم في الخلفية
       if (user?.email && user.role !== 'company') {
-        const promises = data.map(course => 
-           API.get(`/progress/calculate/${course.id}/${user.email}`)
-             .then(res => ({id: course.id, val: res.data?.percent || 0}))
-             .catch(()=> ({id: course.id, val: 0}))
+        const progressPromises = data.map(course => 
+          API.get(`/progress/calculate/${course.id}/${user.email}`)
+            .then(res => ({id: course.id, val: res.data?.percent || 0}))
+            .catch(() => ({id: course.id, val: 0}))
         );
-        const results = await Promise.all(promises);
-        const newProgress = {};
-        results.forEach(r => { newProgress[r.id] = r.val });
-        setProgressData(newProgress);
-        checkNotifications();
+        criticalRequests.push(
+          Promise.all(progressPromises).then(results => {
+            const newProgress = {};
+            results.forEach(r => { newProgress[r.id] = r.val });
+            setProgressData(newProgress);
+          })
+        );
+        criticalRequests.push(checkNotifications());
       }
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+
+      // انتظر العمليات الفرعية تخلص
+      await Promise.all(criticalRequests);
+
+    } catch (err) {
+      console.error("Global Fetch Error", err);
+    } finally {
+      // ✅ مهما حصل اقفل شاشة التحميل بعد 800 مللي ثانية
+      setTimeout(() => setLoading(false), 800);
+    }
   };
 
-  useEffect(() => { if (user) fetchData(); }, [user?.id]);
+  useEffect(() => { 
+    if (user) fetchData(); 
+    else setLoading(false);
+  }, [user?.id]);
 
   const handleLogout = () => { setUser(null); localStorage.clear(); setCurrentView('home'); };
 
-  if (!user) {
+  if (!user && !loading) {
     return (
       <div style={styles.appContainer}>
         <div style={styles.backgroundGrid}></div>
@@ -128,10 +155,10 @@ function App() {
     );
   }
 
-  if (loading && activities.length === 0) {
+  if (loading) {
       return (
           <div style={styles.loadingContainer}>
-              <LoadingEffect message="SYNCING DATA..." />
+              <LoadingEffect message="SYNCING WITH IEEE HUB..." />
           </div>
       );
   }
@@ -186,7 +213,7 @@ function App() {
                           <div style={styles.progressText}>Progress: {progressData[act.id] || 0}%</div>
                           <div style={styles.barBg}><div style={{...styles.barFill, width: `${progressData[act.id] || 0}%`}}></div></div>
                       </div>
-                      <button onClick={() => handleOpenCourse(act)} style={styles.continueBtn}>Continue ▶️</button>
+                      <button onClick={() => handleOpenCourse(act)} style={styles.continueBtn}>Continue Learning ▶️</button>
                     </div>
                   </div>
                 ))}
